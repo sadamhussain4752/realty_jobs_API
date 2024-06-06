@@ -1,217 +1,87 @@
-// controllers/Product.js
-const Product = require("../../models/ProductModel/Product");
-const {BASEURL} = require('../../utils/Constants')
-// Create a new Product
+// controllers/Job.js
+const Job = require("../../models/ProductModel/Product");
 
-const LANGID = {
-  1: "IND",
-  2: "JPN",
-  3: "KOR",
-  4: "AUS",
-};
-
-exports.createProduct = async (req, res) => {
-
+// Controller method to get all jobs
+exports.getAllJobs = async (req, res) => {
   try {
-      const {
-        name,
-        subname,
-        description,
-        amount,
-        offeramount,
-        color,
-        weight,
-        dimensions,
-        sku,
-        availability,
-        isActive,
-        createdBy,
-        category,
-        lang,
-        qty,
-        exta_add_item
-      } = req.body;
-      console.log(req.file,req.files);
-      // Assuming "images" is a file field in the form
-      const imagePaths = req.files ? req.files.map(file => `${file.filename}`) : null;
-
-      const newProduct = await Product.create({
-          name,
-          description,
-          amount,
-          offeramount,
-          subname,
-          imageUrl: req.fileUrls[0],
-          color,
-          weight,
-          dimensions,
-          sku,
-          availability,
-          isActive,
-          createdBy,
-          category,
-          brand_id: "",
-          lang,
-          qty,
-          exta_add_item
-      });
-
-      res.status(200).json({ success: true, product: newProduct });
+    const jobs = await Job.find();
+    res.json({ success: true, data: jobs });
   } catch (error) {
-      console.error(error);
-      res.status(500).json({ success: false, error: "Server error" });
-  }
-}
-
-exports.getAllProducts = async (req, res) => {
-  const { lang } = req.query;
-
-  // Validate 'lang' parameter
-  if (!lang || !LANGID[lang]) {
-    return res.status(400).json({ success: false, error: "Invalid 'lang' parameter" });
-  }
- 
-  try {
-    const products = await Product.find({ lang: LANGID[lang] });
-
-   
-
-    return res.status(200).json({ success: true, products });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, error: "Server error" });
+    res.status(400).json({ success: false, error: error.message });
   }
 };
 
-
-
-// Get user-specific Products by language and search criteria
-exports.getUserProducts = async (req, res) => {
+// Get user-specific Jobs by language and search criteria
+exports.getUserJobs = async (req, res) => {
   try {
     const { search } = req.query;
    
-
     const query = {
-      isActive: true,  // Include only active products
+      isActive: true,  // Include only active jobs
       $or: [
-        { name: { $regex: new RegExp(search, 'i') } },  // Case-insensitive search for name
+        { title: { $regex: new RegExp(search, 'i') } },  // Case-insensitive search for title
         { description: { $regex: new RegExp(search, 'i') } },  // Case-insensitive search for description
       ],
     };
-    const userProducts = await Product.find(query);
+    const userJobs = await Job.find(search && query);
 
-    res.status(200).json({ success: true, userProducts });
+    res.status(200).json({ success: true, data: userJobs });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
 
-
-// Get a specific Product by ID
-exports.getProductById = async (req, res) => {
+// Controller method to get a job by ID
+exports.getJobById = async (req, res) => {
   try {
-    const ProductId = req.params.id;
-    const Products = await Product.findById(ProductId);
-
-    if (!Products) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Products not found" });
+    const { id } = req.params;
+    const job = await Job.findById(id);
+    if (!job) {
+      return res.status(404).json({ success: false, error: 'Job not found' });
     }
-
-    res.status(200).json({ success: true, Products });
+    res.json({ success: true, data: job });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: "Server error" });
+    res.status(400).json({ success: false, error: error.message });
   }
 };
 
-// Update a specific Product by ID
-exports.updateProductById = async (req, res) => {
-    try {
-      const ProductId = req.params.id;
-      const {
-        name,
-        description,
-        amount,
-        offeramount,
-        color,
-        weight,
-        dimensions,
-        sku,
-        availability,
-        isActive,
-        createdBy,
-        category,
-        lang,
-        brand_id,
-        qty,
-        subname,
-        exta_add_item
-      } = req.body;
-  
-      // Check if the Product exists
-      const existingProduct = await Product.findById(ProductId);
-  
-      if (!existingProduct) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Product not found" });
-      }
-      const imagePaths = req.files ? req.files.map(file => `${file.filename}`) : null;
-
-      // Update the Product fields
-      existingProduct.name = name;
-      existingProduct.subname = subname;
-      existingProduct.description = description;
-      existingProduct.amount = amount;
-      existingProduct.offeramount = offeramount;
-      // existingProduct.images = req.fileUrls[0];
-      existingProduct.color = color;
-      existingProduct.weight = weight;
-      existingProduct.dimensions = dimensions;
-      existingProduct.sku = sku;
-      existingProduct.availability = availability;
-      existingProduct.isActive = isActive;
-      existingProduct.createdBy = createdBy;
-      existingProduct.category = category;
-      existingProduct.brand_id = brand_id;
-      existingProduct.lang = lang;
-      existingProduct.qty = qty;
-      existingProduct.exta_add_item = exta_add_item;
-  
-      // Save the updated Product
-      const updatedProduct = await existingProduct.save();
-  
-      res.status(200).json({ success: true, product: updatedProduct });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ success: false, error: "Server error" });
-    }
-  };
-  
-
-// Delete a specific Product by ID
-exports.deleteProductById = async (req, res) => {
+// Controller method to create a new job
+exports.createJob = async (req, res) => {
   try {
-    const ProductId = req.params.id;
-
-    // Check if the Product exists
-    const existingProduct = await Product.findById(ProductId);
-
-    if (!existingProduct) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
-    }
-
-    // Remove the Product from the database
-    await Product.deleteOne({ _id: ProductId });
-
-    res.status(200).json({ success: true, message: "Product deleted successfully" });
+    const jobData = req.body; // Assuming request body contains job data
+    const job = await Job.create(jobData);
+    res.status(200).json({ success: true, data: job });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: "Server error" });
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+// Controller method to delete a job by ID
+exports.deleteJobById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const job = await Job.findByIdAndDelete(id);
+    if (!job) {
+      return res.status(404).json({ success: false, error: 'Job not found' });
+    }
+    res.json({ success: true, data: job });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
+// Controller method to update a job by ID
+exports.updateJobById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const jobData = req.body; // Assuming request body contains updated job data
+    const job = await Job.findByIdAndUpdate(id, jobData, { new: true });
+    if (!job) {
+      return res.status(404).json({ success: false, error: 'Job not found' });
+    }
+    res.status(200).json({ success: true, data: job });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
   }
 };

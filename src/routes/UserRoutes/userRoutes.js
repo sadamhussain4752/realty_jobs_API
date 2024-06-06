@@ -50,6 +50,6 @@ router.delete("/deleteUser/:id", UserController.deleteUser);
 router.put("/admins/:id", UserController.updateAdmin);
 
 // Update an admin by ID
-router.put("/User/:id", UserController.updateUsers);
+router.put("/userdetails/:id", UserController.updateUserDetail);
 
 module.exports = router;

@@ -12,7 +12,7 @@ const authRoutes = require("./routes/authRoutes");
 const UserController = require("./routes/UserRoutes/userRoutes");
 const categoryRoutes = require("./routes/categoryRoutes/categoryRoutes");
 const brandRoutes = require("./routes/BrandRoutes/brandRoutes");
-const productRoutes = require("./routes/ProductRoutes/productRoutes");
+const productRoutes = require("./routes/ProductRoutes/jobDetailsRoutes");
 const couponRoutes = require("./routes/couponRoutes/CouponRouter");
 const addressRoutes = require("./routes/AddressRoutes/addressRoutes");
 const addcartRoutes = require("./routes/AddCartRoutes/addCartRoutes");
@@ -36,7 +36,7 @@ const port = process.env.PORT || 5000;
 
 try {
   mongoose.connect(
-    'mongodb+srv://sadam:YjV45hMBCaIoyVoH@cluster0.qxyasba.mongodb.net/?retryWrites=true&w=majority',
+    'mongodb+srv://sadamhussain4752:NKuVyt4J1b2BOX0W@cluster0.acpoakl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0',
     {
       useNewUrlParser: true,
       useUnifiedTopology: true,
@@ -48,11 +48,18 @@ try {
   // Handle the error as needed, e.g., terminate the application or take other corrective actions.
 }
 
+//hkmPbr03LHzq
+
 // Email configuration
 const transporter = nodemailer.createTransport({
-  host: 'email-smtp.eu-north-1.amazonaws.com',
-  port: 587
+  host: "smtp.gmail.com",
+  port: 587,
+  auth: {
+    user: "noreply@imsolutions.mobi",
+    pass: "ssfnuabpmshuhlwj",
+  },
 });
+
 
 // Function to validate email
 function validateEmail(email) {
@@ -79,7 +86,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/user", UserController);
 app.use("/api/category", categoryRoutes);
 app.use("/api/brand", brandRoutes);
-app.use("/api/product", productRoutes);
+app.use("/api/jobs", productRoutes);
 app.use("/api/coupon", couponRoutes);
 app.use("/api/address", addressRoutes);
 app.use("/api/addcart", addcartRoutes);

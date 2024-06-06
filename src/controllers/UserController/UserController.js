@@ -4,6 +4,8 @@ const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const User = require("../../models/UserModel/User");
 const Admin = require("../../models/UserModel/Admin");
+const UserDetails = require("../../models/UserModel/UserDetail");
+
 const transporter = require("../../utils/emailConfig");
 const { v4: uuidv4 } = require("uuid");
 const twilio = require("twilio");
@@ -155,9 +157,9 @@ module.exports = {
         // Check if user exists
         if (!user.verified || user.OTPNumber || user.UserType === "3") {
           // Send verification code via Twilio SMS
-          let updateOTP = await sendVerificationSMS(`${user.mobilenumber}`); // Assuming phoneNumber is a property of your User model
+          // let updateOTP = await sendVerificationSMS(`${user.mobilenumber}`); // Assuming phoneNumber is a property of your User model
           // Save the reset token and its expiration time in the user document
-          user.OTPNumber = updateOTP;
+          user.OTPNumber = 1234;
           await user.save();
           return res.status(401).json({
             success: false,
@@ -204,7 +206,7 @@ module.exports = {
     }
   },
 
-  register: async (req, res,google_signin) => {
+  register: async (req, res) => {
     try {
       let newAdmin;
 
@@ -214,8 +216,9 @@ module.exports = {
       }
 
       const {
-        firstname,
-        lastname,
+        fullname,
+        work_status,
+        send_message,
         email,
         password,
         mobilenumber,
@@ -226,6 +229,7 @@ module.exports = {
         lat,
         log,
         lang,
+        google_signin
       } = req.body;
 
       const emailTaken = await isFieldTaken(
@@ -242,25 +246,33 @@ module.exports = {
       );
       if (mobileTaken) return res.status(400).json(mobileTaken);
 
-      const usernameTaken = await isFieldTaken(
-        "firstname",
-        firstname,
-        RESPONSE_MESSAGES.USERNAME_TAKEN
-      );
-      if (usernameTaken) return res.status(400).json(usernameTaken);
+      // const usernameTaken = await isFieldTaken(
+      //   "fullname",
+      //   fullname,
+      //   RESPONSE_MESSAGES.USERNAME_TAKEN
+      // );
+      // if (usernameTaken) return res.status(400).json(usernameTaken);
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const otp = generateVerificationCode();
 
+       // Create a new UserDetail
+    const newUserDetail = await UserDetails.create({
+      // Populate UserDetail fields as needed
+      // For example, you can populate with default values
+    });
+
       const newUser = await User.create({
-        firstname,
-        lastname,
+        fullname,
+        work_status,
         UserType,
         mobilenumber,
         email,
+        send_message,
         password: hashedPassword,
-        username: firstname,
+        username: fullname,
         lang,
+        isprofile_id : newUserDetail._id,
         OTPNumber: 1234, // Save the generated OTP in the user document
       });
 
@@ -290,7 +302,7 @@ module.exports = {
       }
 
       // Send OTP via Twilio SMS
-      await sendVerificationSMS(`+91${mobilenumber}`, otp);
+      // await sendVerificationSMS(`+91${mobilenumber}`, otp);
 
       const response = {
         success: true,
@@ -648,4 +660,31 @@ module.exports = {
       res.status(500).json({ success: false, error: "Server error" });
     }
   },
+  updateUserDetail: async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const updateData = req.body;
+
+      const userDetailToUpdate = await UserDetails.findById(userId);
+      console.log({userDetailToUpdate});
+
+      if (!userDetailToUpdate) {
+        return res
+          .status(404)
+          .json({ success: false, error: "UserDetail not found" });
+      }
+
+      // Update UserDetail
+      const updatedUserDetail = await UserDetails.findByIdAndUpdate(
+        { _id: userId },
+        updateData,
+        { new: true, runValidators: true }
+      );
+
+      res.status(200).json({ success: true, message: "Successfully uploaded" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, error: "Server error" });
+    }
+  }
 };
