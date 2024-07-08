@@ -31,7 +31,7 @@ app.use(cors());
 // Use express.static to serve static files (including images)
 app.use(express.static(path.join(__dirname, "./../uploads")));
 
-const port = process.env.PORT || 6000;
+const port = process.env.PORT || 5000;
 
 
 try {
