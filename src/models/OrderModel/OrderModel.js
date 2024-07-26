@@ -24,7 +24,6 @@ const OrderSchema = new mongoose.Schema({
       "Completed",
       "Failed",
       "Returned",
-      "Preparing",
       "Order Placed",
       "Confirmed",
       "Out for Delivery",
@@ -37,11 +36,11 @@ const OrderSchema = new mongoose.Schema({
   exta_message: { type: String },
   exta_add_item: { type: String },
   applycoupon: { type: String },
+  shipment_id: { type: String },
   quantity: [
     {
       productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
       quantity: { type: String, required: true },
-      Options_product_Id : { type: String }
     },
   ],
 });

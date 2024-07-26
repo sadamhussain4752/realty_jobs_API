@@ -5,18 +5,24 @@ const {BASEURL} = require("../../utils/Constants")
 // Create a new category
 exports.createCategory = async (req, res) => {
   try {
-    const { name, description, isActive, createdBy, lang,order_by } = req.body;
-    const imagePaths = req.files ? req.files.map(file => `${file.filename}`) : null;
-    console.log(imagePaths);
+    const { name, description, isActive, createdBy, lang } = req.body;
+
+    // Ensure req.fileUrls is properly structured
+    const imageUrl = req.fileUrls ? req.fileUrls['imageFile'] : null;
+    const categoryImgDesktop = req.fileUrls ? req.fileUrls['ImgDesktop'] : null;
+    const categoryImgMobile = req.fileUrls ? req.fileUrls['ImgMobile'] : null;
+
+    console.log('Image URLs:', req.fileUrls);
 
     const newCategory = await Category.create({
       name,
       description,
-      imageUrl: req.fileUrls[0],
+      imageUrl,
+      category_img_desktop: categoryImgDesktop,
+      category_img_mobile: categoryImgMobile,
       isActive,
       createdBy,
       lang,
-      order_by
     });
 
     res.status(200).json({ success: true, category: newCategory });
@@ -26,19 +32,12 @@ exports.createCategory = async (req, res) => {
   }
 };
 
+
 // Get all categories
 exports.getAllCategories = async (req, res) => {
   try {
     const categories = await Category.find();
-
-    categories.sort((a, b) => {
-      // Convert the order_by field from string to number
-      const orderA = parseFloat(a.order_by);
-      const orderB = parseFloat(b.order_by);
-    
-      // Compare the numeric values
-      return orderA - orderB;
-    });   
+   
     res.status(200).json({ success: true, categories });
   } catch (error) {
     console.error(error);
@@ -52,7 +51,7 @@ exports.getCategoryById = async (req, res) => {
     const categoryId = req.params.id;
     const category = await Category.findById(categoryId);
 
-    if (!category) {
+    if (!category) {category_img_desktop
       return res
         .status(404)
         .json({ success: false, message: "Category not found" });
@@ -69,7 +68,7 @@ exports.getCategoryById = async (req, res) => {
 exports.updateCategoryById = async (req, res) => {
   try {
     const categoryId = req.params.id;
-    const { name, description, isActive, createdBy, lang,order_by } = req.body;
+    const { name, description, isActive, createdBy, lang } = req.body;
 
     // Check if the category exists
     const existingCategory = await Category.findById(categoryId);
@@ -80,18 +79,29 @@ exports.updateCategoryById = async (req, res) => {
         .json({ success: false, message: "Category not found" });
     }
 
-    const imagePaths = req.files ? req.files.map(file => `${file.filename}`) : null;
-    console.log(imagePaths);
-    
+    // Ensure req.fileUrls is properly structured
+    const imageUrl = req.fileUrls ? req.fileUrls['imageFile'] : null;
+    const categoryImgDesktop = req.fileUrls ? req.fileUrls['ImgDesktop'] : null;
+    const categoryImgMobile = req.fileUrls ? req.fileUrls['ImgMobile'] : null;
+
     // Update the category fields
     existingCategory.name = name;
     existingCategory.isActive = isActive;
     existingCategory.description = description;
-    existingCategory.imageUrl = req.fileUrls[0];
+
+    // Update image URLs only if new files are uploaded
+    if (imageUrl) {
+      existingCategory.imageUrl = imageUrl;
+    }
+    if (categoryImgDesktop) {
+      existingCategory.category_img_desktop = categoryImgDesktop;
+    }
+    if (categoryImgMobile) {
+      existingCategory.category_img_mobile = categoryImgMobile;
+    }
+
     existingCategory.createdBy = createdBy;
     existingCategory.lang = lang;
-    existingCategory.order_by = order_by
-    
 
     // Save the updated category
     const updatedCategory = await existingCategory.save();
@@ -102,6 +112,7 @@ exports.updateCategoryById = async (req, res) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
+
 
 // Delete a specific category by ID
 exports.deleteCategoryById = async (req, res) => {

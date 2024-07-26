@@ -10,6 +10,12 @@ router.post('/createCartItem', AddCartController.createCartItem);
 
 router.get('/addcartUser/:id', AddCartController.getAddcart);
 
+// Get all based on User item in the cart
+
+router.post('/getCartItem', AddCartController.getCartItem);
+
+
+
 // Update quantity of an item in the cart
 router.put('/updateCartItem/:id', AddCartController.updateCartItem);
 

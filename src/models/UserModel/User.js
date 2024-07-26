@@ -3,33 +3,22 @@ const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 
 const userSchema = new mongoose.Schema({
-  
-  fullname: { type: String, required: true },
-  work_status: { type: String },
-  UserType: { type: String, required: true },
+  firstname: { type: String, required: true },
+  lastname: { type: String, required: true },
+  UserType: { type: String },
   mobilenumber: { type: String, required: true },
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true },
   username: { type: String },
-  lang: { type: String },
-  fcm_token: { type: String },
-  send_message: { type: String },
+  lang: { type: String, unique: false },
+  profile_img: {type: String},
   OTPNumber: { type: Number },
+  loyalty_point: {type: Number, default: 0}, // Changed type to Number
   verified: {
     type: Boolean,
+    required: true,
     default: true,
   },
-  isPaidUser: {
-    type: Boolean,
-    default: false,
-  },
-  isPremium: {
-    type: Boolean,
-    default: false,
-  },
-  isprofile_id: {
-    type: String,
-  }
 });
 
 // Add a method to generate a verification token

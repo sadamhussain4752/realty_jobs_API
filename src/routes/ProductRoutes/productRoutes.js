@@ -8,20 +8,19 @@ const ProductController = require("../../controllers/AddProductController/Produc
 
 
 // Create a new Product
-router.post("/addProduct", uploadHandler, ProductController.createProduct);
+router.post("/addjobpost", uploadHandler, ProductController.createJobPost);
 
 // Get all categories
-router.get("/allProduct", ProductController.getAllProducts);
-
-// Get all showproduct
-router.get("/ProductUserId", ProductController.getUserProducts);
+router.get("/alljobpost", ProductController.getAllJobPosts);
 
 // Get a specific Product by ID
-router.get("/Product/:id", ProductController.getProductById);
+router.get("/jobpost/:id", ProductController.getJobPostById);
+
+
 
 // Updated a specific Product by ID
-router.put("/Product/:id",uploadHandler, ProductController.updateProductById);
+router.put("/jobpost/:id",uploadHandler, ProductController.updateJobPostById);
 
-router.delete("/Product/:id", ProductController.deleteProductById);
+router.delete("/jobpost/:id", ProductController.deleteJobPostById);
 
 module.exports = router;

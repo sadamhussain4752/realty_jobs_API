@@ -1,6 +1,6 @@
 // controllers/Coupon.js
 const Coupon = require("../../models/Coupon/Coupon");
-const Order = require("../../models/OrderModel/OrderModel");
+const Order = require("../../models/OrderModel/OrderModel")
 
 // Get all Coupons
 exports.getAllCoupons = async (req, res) => {
@@ -43,8 +43,9 @@ exports.createCoupon = async (req, res) => {
       createdBy,
       category_id,
       maxlimit,
+      isShow_display,
       lang,
-      coupon_type
+      screen_Id
     } = req.body;
     const newCoupon = await Coupon.create({
       code,
@@ -54,8 +55,9 @@ exports.createCoupon = async (req, res) => {
       createdBy,
       maxlimit,
       category_id,
+      isShow_display,
       lang,
-      coupon_type
+      screen_Id
     });
     res.status(200).json({ success: true, coupon: newCoupon });
   } catch (error) {
@@ -77,8 +79,8 @@ exports.updateCouponById = async (req, res) => {
       category_id,
       maxlimit,
       timesUsed,
+      isShow_display,
       lang,
-      coupon_type
     } = req.body;
 
     // Check if the Coupon exists
@@ -98,7 +100,7 @@ exports.updateCouponById = async (req, res) => {
     existingCoupon.createdBy = createdBy;
     existingCoupon.maxlimit = maxlimit;
     existingCoupon.timesUsed = timesUsed;
-    existingCoupon.coupon_type = coupon_type;
+    existingCoupon.isShow_display = isShow_display;
     existingCoupon.category_id = category_id;
     existingCoupon.lang = lang;
 
@@ -192,4 +194,3 @@ exports.applyCoupon = async (req, res) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
-

@@ -7,9 +7,12 @@ const BrandSchema = new mongoose.Schema({
   imageUrl: String,
   isActive: { type: Boolean, default: true },
   createdBy: { type: String, required: true },
-  category_id: { type: String, required: true },
+  category_id: { type: String },
   createdAt: { type: Date, default: Date.now },
   lang: { type: String, required: true },
+  banner_img: [String], // Array to store multiple image URLs
+  banner_mob_img: [String], // Array to store multiple image URLs
+
 
 });
 

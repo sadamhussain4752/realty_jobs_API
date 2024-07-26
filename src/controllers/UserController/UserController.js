@@ -4,12 +4,18 @@ const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const User = require("../../models/UserModel/User");
 const Admin = require("../../models/UserModel/Admin");
-const UserDetails = require("../../models/UserModel/UserDetail");
-
 const transporter = require("../../utils/emailConfig");
 const { v4: uuidv4 } = require("uuid");
-const twilio = require("twilio");
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const nodemailer = require('nodemailer');
+
+
+// Load client secrets from a local file.
+const CREDENTIALS_PATH = 'path/to/credentials.json'; // Update this path to your credentials file
+const TOKEN_PATH = 'path/to/token.json'; // Update this path to where you want to store the token
+
 
 const RESPONSE_MESSAGES = {
   EMAIL_TAKEN: "Email is already taken",
@@ -47,12 +53,12 @@ const sendResetEmail = async (userEmail, resetToken) => {
 };
 
 // Send reset email
-const sendVerificationEmail = async (email) => {
+const sendVerificationEmail = async (email,otp) => {
   const mailOptions = {
     from: "sadamimsolutions@gmail.com",
     to: email,
     subject: "Account Verification",
-    html: "<p>Thank you for registering! Please click the link to verify your account.</p>",
+    html: `<p>Thank you for registering! Please click the link to verify your account OTP ${otp}.</p>`,
   };
   await transporter.sendMail(mailOptions);
 };
@@ -115,6 +121,42 @@ function generateVerificationCode() {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
+
+const sendEmail = async (email, otp) => {
+  try {
+   
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      auth: {
+        user: "sadam@imsolutions.mobi",
+        pass: "dubdhyzvluxegnke",
+      },
+    });
+
+    await transporter.verify();
+    
+    await transporter.sendMail({
+      from: "sadamimsolutions@gmail.com",
+      to: email,
+      subject: "Account Verification",
+      html: `<p>Thank you for registering! Please click the link to verify your account OTP ${otp}.</p>`,
+    });
+
+    console.log('Email sent successfully!');
+    return {
+      status: 200
+    };
+
+  } catch (error) {
+    console.error('Error sending email:', error);
+    return {
+      status: 500,
+      error
+    };
+  }
+};
+
 module.exports = {
   login: async (req, res) => {
     const { email, password, mobilenumber,google_signin,fcm_token } = req.body;
@@ -155,15 +197,13 @@ module.exports = {
         }
         console.log(!user.verified  , user.UserType === "3");
         // Check if user exists
-        if (!user.verified || user.OTPNumber || user.UserType === "3") {
-          // Send verification code via Twilio SMS
-          // let updateOTP = await sendVerificationSMS(`${user.mobilenumber}`); // Assuming phoneNumber is a property of your User model
-          // Save the reset token and its expiration time in the user document
-          user.OTPNumber = 1234;
-          await user.save();
-          return res.status(401).json({
-            success: false,
-            message: "Verification SMS sent successfully",
+        if (user.verified && user.UserType === "3") {
+          return res
+          .status(200)
+          .json({
+            success: true,
+            userId: user._id,
+            UserType: user.UserType,
           });
         }
 
@@ -194,7 +234,6 @@ module.exports = {
           .status(200)
           .json({
             success: true,
-            token,
             userId: user._id,
             UserType: user.UserType,
           });
@@ -205,20 +244,18 @@ module.exports = {
       res.status(500).json({ success: false, error: "Server error" });
     }
   },
+  
 
-  register: async (req, res) => {
+  register: async (req, res, ) => {
     try {
-      let newAdmin;
-
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ success: false, errors: errors.array() });
       }
-
+  
       const {
-        fullname,
-        work_status,
-        send_message,
+        firstname,
+        lastname,
         email,
         password,
         mobilenumber,
@@ -231,65 +268,56 @@ module.exports = {
         lang,
         google_signin
       } = req.body;
-
+  
       const emailTaken = await isFieldTaken(
         "email",
         email,
         RESPONSE_MESSAGES.EMAIL_TAKEN
       );
       if (emailTaken) return res.status(400).json(emailTaken);
-
+  
       const mobileTaken = await isFieldTaken(
         "mobilenumber",
         mobilenumber,
         RESPONSE_MESSAGES.MOBILE_TAKEN
       );
       if (mobileTaken) return res.status(400).json(mobileTaken);
-
-      // const usernameTaken = await isFieldTaken(
-      //   "fullname",
-      //   fullname,
-      //   RESPONSE_MESSAGES.USERNAME_TAKEN
-      // );
-      // if (usernameTaken) return res.status(400).json(usernameTaken);
-
+  
+      const usernameTaken = await isFieldTaken(
+        "firstname",
+        firstname,
+        RESPONSE_MESSAGES.USERNAME_TAKEN
+      );
+      if (usernameTaken) return res.status(400).json(usernameTaken);
+  
       const hashedPassword = await bcrypt.hash(password, 10);
       const otp = generateVerificationCode();
-
-       // Create a new UserDetail
-    const newUserDetail = await UserDetails.create({
-      // Populate UserDetail fields as needed
-      // For example, you can populate with default values
-    });
-
+      const otpExpiry = Date.now() + 3600000; // OTP expires in 1 hour
+  
       const newUser = await User.create({
-        fullname,
-        work_status,
+        firstname,
+        lastname,
         UserType,
         mobilenumber,
         email,
-        send_message,
         password: hashedPassword,
-        username: fullname,
+        username: firstname,
         lang,
-        isprofile_id : newUserDetail._id,
-        OTPNumber: 1234, // Save the generated OTP in the user document
+        OTPNumber: otp,
+        OTPExpiry: otpExpiry,
+        verified: true,
       });
-
+  
       if (google_signin) {
         const response = {
           success: true,
           user: newUser,
           userId: newUser._id,
           UserType: newUser.UserType,
-
-
         };
-        return res
-        .status(200).json(response)
-        
+        return res.status(200).json(response);
       }
-
+  
       if (UserType === "2") {
         newAdmin = await Admin.create({
           storename,
@@ -300,27 +328,26 @@ module.exports = {
           log,
         });
       }
-
-      // Send OTP via Twilio SMS
-      // await sendVerificationSMS(`+91${mobilenumber}`, otp);
-
+  
+      await sendEmail(email, otp);
+  
       const response = {
         success: true,
         user: newUser,
       };
-
+  
       if (newAdmin) {
         response.admin = newAdmin;
       }
-
+     
+      
       res.status(200).json(response);
     } catch (error) {
       console.error(error);
-      res
-        .status(500)
-        .json({ success: false, error: RESPONSE_MESSAGES.SERVER_ERROR });
+      res.status(500).json({ success: false, error: RESPONSE_MESSAGES.SERVER_ERROR });
     }
   },
+  
   listUsers: async (req, res) => {
     try {
       // Fetch all users
@@ -411,9 +438,9 @@ module.exports = {
       }
 
       // Send verification code via Twilio SMS
-      const updateOTP = await sendVerificationSMS(`${user.mobilenumber}`);
+      // const updateOTP = await sendVerificationSMS(`${user.mobilenumber}`);
       // Save the OTP in the user document
-      user.OTPNumber = updateOTP;
+      user.OTPNumber = 1234;
       await user.save();
 
       return res
@@ -660,31 +687,67 @@ module.exports = {
       res.status(500).json({ success: false, error: "Server error" });
     }
   },
-  updateUserDetail: async (req, res) => {
+  userImageGetById: async (req, res) => {
     try {
       const userId = req.params.id;
-      const updateData = req.body;
-
-      const userDetailToUpdate = await UserDetails.findById(userId);
-      console.log({userDetailToUpdate});
-
-      if (!userDetailToUpdate) {
-        return res
-          .status(404)
-          .json({ success: false, error: "UserDetail not found" });
+      const { profile_img,firstName,lastName } = req.body;
+  
+      // Check if the user with the given ID exists
+      const userData = await User.findById(userId);
+  
+      if (!userData) {
+        return res.status(404).json({ success: false, error: "User not found" });
       }
-
-      // Update UserDetail
-      const updatedUserDetail = await UserDetails.findByIdAndUpdate(
-        { _id: userId },
-        updateData,
-        { new: true, runValidators: true }
-      );
-
-      res.status(200).json({ success: true, message: "Successfully uploaded" });
+  
+      // Update the profile_img if provided
+      if (profile_img !== undefined && profile_img !== null) {
+        userData.profile_img = profile_img;
+      }
+       // Update the profile_img if provided
+       if (firstName !== undefined && firstName !== null) {
+        userData.firstname = firstName;
+      }
+       // Update the profile_img if provided
+       if (lastName !== undefined && lastName !== null) {
+        userData.lastname = lastName;
+      }
+  
+      // Save the updated user
+      await userData.save();
+  
+      res.status(200).json({
+        success: true,
+        user: userData,
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, error: "Server error" });
     }
-  }
+  },
+  verifyEmailOTP: async (req, res) => {
+    try {
+      const { email, otp } = req.body;
+      const user = await User.findOne({ email });
+  
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
+  
+      if (user.OTPNumber !== otp || user.OTPExpiry < Date.now()) {
+        return res.status(401).json({ success: false, message: "Invalid or expired OTP" });
+      }
+  
+      // Reset the OTP and mark the user as verified
+      user.OTPNumber = null;
+      user.OTPExpiry = null;
+      user.verified = true;
+      await user.save();
+  
+      res.status(200).json({ success: true, message: "Email verified successfully" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, error: "Server error" });
+    }
+  },
+  
 };

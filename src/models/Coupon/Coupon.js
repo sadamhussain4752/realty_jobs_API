@@ -8,10 +8,12 @@ const CouponSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   createdBy: { type: String },
   category_id: { type: String },
-  coupon_type:{type: String},
   timesUsed: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
   lang: { type: String },
+  isShow_display: { type: Boolean, default: true },
+  coupon_type: { type: String},
+  screen_Id: { type: String}
 });
 
 const Coupon = mongoose.model("Coupon", CouponSchema);
