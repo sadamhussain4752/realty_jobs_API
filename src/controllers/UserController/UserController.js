@@ -5,6 +5,8 @@ const { validationResult } = require("express-validator");
 const User = require("../../models/UserModel/User");
 const Admin = require("../../models/UserModel/Admin");
 const Companys = require("../../models/AddCompany/CompanyModel");
+const JobPost = require("../../models/ProductModel/NewModelProduct");
+const AddCart = require('../../models/AddCart/AddCartModel');
 
 const transporter = require("../../utils/emailConfig");
 const { v4: uuidv4 } = require("uuid");
@@ -598,17 +600,62 @@ module.exports = {
       }
   
       let adminValues = null;
+      let jobPostCount = 0;
+      let jobApplicationTotal = 0;
+      let jobShortListTotal = 0;
   
-      // If the user is of type 2 (admin), fetch their associated company/admin data
       if (userData.UserType === "2") {
-          adminValues = await Companys.findById(userData.admin_id);
+        adminValues = await Companys.findById(userData.admin_id);
   
-        if (adminValues) {
-          // Convert Mongoose document to plain JavaScript object
-          userData._doc.admin_values = adminValues;
-        } else {
+        if (!adminValues) {
           return res.status(404).json({ success: false, error: "Admin data not found" });
         }
+  
+        // Fetch JobPost count, AddCart items, and ShortList totals in parallel
+        const [jobPostTotal, addCarts, shortListTotal] = await Promise.all([
+          JobPost.countDocuments({ company_id: adminValues._id }),
+          AddCart.aggregate([
+            {
+              $lookup: {
+                from: 'jobposts', // collection name in the database
+                localField: 'productId',
+                foreignField: '_id',
+                as: 'productDetails'
+              }
+            },
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'userId',
+                foreignField: '_id',
+                as: 'userDetails'
+              }
+            },
+            {
+              $unwind: '$productDetails'
+            },
+            {
+              $match: {
+                'productDetails.company_id': userId
+              }
+            },
+            {
+              $unwind: '$userDetails'
+            }
+          ]),
+          AddCart.countDocuments({ status: "Approved", companyId: adminValues._id })
+        ]);
+  
+        jobPostCount = jobPostTotal;
+        jobApplicationTotal = addCarts.length;
+        jobShortListTotal = shortListTotal;
+  
+        // Add admin values and counts to user data
+        userData._doc.admin_values = adminValues;
+        userData._doc.JobPost_total = jobPostCount;
+        userData._doc.JobMessage_total = 0; // You can update this if you have a way to get JobMessage count
+        userData._doc.JobShortList_total = jobShortListTotal;
+        userData._doc.JobApplication_total = jobApplicationTotal;
       }
   
       // Respond with user data
@@ -618,6 +665,8 @@ module.exports = {
       res.status(500).json({ success: false, error: "Server error" });
     }
   },
+  
+  
   updateAdmin: async (req, res) => {
     try {
       const adminId = req.params.id;

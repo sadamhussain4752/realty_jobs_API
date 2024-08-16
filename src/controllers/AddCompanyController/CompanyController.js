@@ -71,6 +71,7 @@ const getCompany = async (req, res) => {
   try {
     const companyId = req.params.id;
     const company = await Company.findById(companyId);
+    console.log(company,"logg",companyId);
 
     const jobPosts = await JobPost.find({ company_id: company._id });
     console.log(jobPosts,"jobPosts");
@@ -93,6 +94,7 @@ const getCompanyById = async (req, res) => {
   try {
     const { id } = req.params; // Assuming the company ID is passed as a URL parameter
     const company = await Company.findById(id);
+    
 
     if (!company) {
     return res.status(404).json({ success: false, error: 'Company not found' });
