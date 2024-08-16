@@ -1,7 +1,7 @@
 // controllers/EmployeeController/employeeController.js
 const Employee = require("../../models/Employees/Employees"); // Assuming your model is in a separate file
 
-const createEmployee = async (req, res) => {
+exports.createEmployee = async (req, res) => {
   try {
     const employeeData = req.body;
     const newEmployee = await Employee.create(employeeData);
@@ -16,7 +16,7 @@ const createEmployee = async (req, res) => {
   }
 };
 
-const getEmployee = async (req, res) => {
+exports.getEmployee = async (req, res) => {
   try {
     const employeeId = req.params.id;
     const employee = await Employee.findById(employeeId);
@@ -30,7 +30,7 @@ const getEmployee = async (req, res) => {
   }
 };
 
-const updateEmployee = async (req, res) => {
+exports.updateEmployee = async (req, res) => {
   try {
     const employeeId = req.params.id;
     const updatedEmployeeData = req.body;
@@ -49,7 +49,7 @@ const updateEmployee = async (req, res) => {
   }
 };
 
-const deleteEmployee = async (req, res) => {
+exports.deleteEmployee = async (req, res) => {
   try {
     const employeeId = req.params.id;
     const deletedEmployee = await Employee.findByIdAndDelete(employeeId);
@@ -63,7 +63,7 @@ const deleteEmployee = async (req, res) => {
   }
 };
 
-const getAllEmployees = async (req, res) => {
+exports.getAllEmployees = async (req, res) => {
     try {
       const employees = await Employee.find();
       res.status(200).json({ success: true, employees: employees });
@@ -73,10 +73,4 @@ const getAllEmployees = async (req, res) => {
     }
   };
 
-module.exports = {
-  createEmployee,
-  getEmployee,
-  updateEmployee,
-  deleteEmployee,
-  getAllEmployees
-};
+

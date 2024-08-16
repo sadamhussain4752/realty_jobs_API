@@ -50,6 +50,12 @@ router.delete("/deleteUser/:id", UserController.deleteUser);
 router.put("/admins/:id", UserController.updateAdmin);
 
 // Update an admin by ID
-router.put("/userdetails/:id", UserController.updateUserDetail);
+router.put("/User/:id", UserController.updateUsers);
+
+router.put("/UserImage/:id", UserController.userImageGetById);
+
+
+router.post("/verify-email-otp", UserController.verifyEmailOTP);
+
 
 module.exports = router;

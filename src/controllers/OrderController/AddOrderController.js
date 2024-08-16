@@ -1,15 +1,10 @@
 const Order = require("../../models/OrderModel/OrderModel");
-const Product = require("../../models/ProductModel/Product");
+const Product = require("../../models/ProductModel/NewModelProduct");
 const User = require("../../models/UserModel/User");
 const Address = require("../../models/Address/AddressModel");
 const moment = require("moment");
 const axios = require("axios");
-
-const EventEmitter = require('events');
-const twilio = require("twilio");
-
-
-
+const Rating = require("../../models/AddRating/RatingModel");
 
 const PAYMENTSTATUS = {
   1: "Completed",
@@ -20,173 +15,261 @@ const orderStatuses = [
   "Processing",
   "Shipped",
   "Delivered",
-  "Cancelled",
+  "Canceled",
   "Refunded",
   "On Hold",
   "Completed",
   "Failed",
   "Returned",
-  "Preparing",
-  "Order Placed",
-  "Confirmed",
-  "Out for Delivery",
 ];
-const eventEmitter = new EventEmitter();
 
-// Define the FCM server key
-const serverKey = 'AAAA2OuANNg:APA91bHhYI2KxWGRqm60dgGtrzbGYGAjKlTtU1K7_NEosNe8RR4RmeFzw9CYtGXnEToWcOQeCMnsqg27BY5FVkAC-qCMq6Fv1ic8yoJcPQiw1ew9oHgR2H_u7Za-jLykypzIAdN_b1Zu'; // Replace 'YOUR_SERVER_KEY' with your FCM server key
+const getAddressById = async (id) => {
+  try {
+    return await Address.findById(id);
+  } catch (error) {
+    console.error(`Error fetching address by ID: ${error}`);
+    throw new Error('Error fetching address');
+  }
+};
 
-// Define the FCM endpoint
-const fcmEndpoint = 'https://fcm.googleapis.com/fcm/send';
-
-const accountSid = "AC7293676e0655bebc9648970017499691";
-const authToken = "fca7569062b1ad9069c81c1714e98383";
-const client = new twilio(accountSid, authToken);
-// Function to send SMS
-async function sendVerificationSMS(phoneNumber,msg) {
-  const apiKey = "07a81cfd6463953ac8e5f3a9d43c1985";
-  const sender = "LHEROS";
-  const templateId = "1607100000000307112";
-
-  const smsData = {
-    key: apiKey,
-    route: 2,
-    sender: sender,
-    number: phoneNumber,
-    sms: `Congratulations! Your order is confirmed. Estimated Delivery Time: ${msg} Thank you for choosing Swiggy! -LOCAL HEROS`,
-    templateid: templateId
+const checkServiceability = async (pickupPostcode, deliveryPostcode, codType) => {
+  const config = {
+    method: 'get',
+    maxBodyLength: Infinity,
+    url: `https://apiv2.shiprocket.in/v1/external/courier/serviceability?pickup_postcode=${pickupPostcode}&delivery_postcode=${deliveryPostcode}&weight=1&cod=${codType}`,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQ2OTk5MDUsInNvdXJjZSI6InNyLWF1dGgtaW50IiwiZXhwIjoxNzE5MjA2ODYzLCJqdGkiOiJSM3NqUkhSc1ViY2ZFZ3EyIiwiaWF0IjoxNzE4MzQyODYzLCJpc3MiOiJodHRwczovL3NyLWF1dGguc2hpcHJvY2tldC5pbi9hdXRob3JpemUvdXNlciIsIm5iZiI6MTcxODM0Mjg2MywiY2lkIjozMjAwNzYzLCJ0YyI6MzYwLCJ2ZXJib3NlIjpmYWxzZSwidmVuZG9yX2lkIjowLCJ2ZW5kb3JfY29kZSI6IiJ9.vyjLdX9fmND3UhrrpA-p-5ZNHZZHCMBEwDH7aBRfSdA'
+    }
   };
 
   try {
-    const response = await axios.get('http://site.ping4sms.com/api/smsapi', {
-      params: smsData
-    });
-
-    // Assuming the response provides some confirmation of successful SMS delivery,
-    // you can handle it here based on the structure of the response.
-    console.log("SMS Sent Successfully:", response.data);
-
+    const response = await axios.request(config);
+    return response.data;
   } catch (error) {
-    console.error("Error sending verification SMS:", error);
+    console.error(`Error checking serviceability: ${error}`);
+    throw new Error('Error checking serviceability');
   }
-}
-// Function to send WhatsApp message
-const sendWhatsApp = async (to, body) => {
+};
+const formatDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+};
+
+const createOrderPayload = async (address, newOrderList, productPromises) => {
+  const currentDate = new Date();
+
+  return JSON.stringify({
+    "order_id": newOrderList._id,
+    "order_date": formatDate(currentDate),
+    "pickup_location": "Godwn",
+    "channel_id": "",
+    "comment": "Reseller: M/s Winterbear",
+    "billing_customer_name": address.fullName,
+    "billing_last_name": address.companyName,
+    "billing_address": address.typeAddress,
+    "billing_address_2": "",
+    "billing_city": address.city,
+    "billing_pincode": address.pinCode,
+    "billing_state": address.state,
+    "billing_country": "India",
+    "billing_email": address.email,
+    "billing_phone": address.phone,
+    "shipping_is_billing": true,
+    "shipping_customer_name": "",
+    "shipping_last_name": "",
+    "shipping_address": "",
+    "shipping_address_2": "",
+    "shipping_city": "",
+    "shipping_pincode": "",
+    "shipping_country": "",
+    "shipping_state": "",
+    "shipping_email": "",
+    "shipping_phone": "",
+    "order_items": await Promise.all(productPromises),
+    "payment_method": "Prepaid",
+    "shipping_charges": 0,
+    "giftwrap_charges": 0,
+    "transaction_charges": 0,
+    "total_discount": 0,
+    "sub_total": newOrderList.totalAmount,
+    "length": 10,
+    "breadth": 15,
+    "height": 20,
+    "weight": 2.5
+  });
+};
+
+const placeOrder = async (payload) => {
+  console.log(payload, "payload");
+  const config = {
+    method: 'post',
+    maxBodyLength: Infinity,
+    url: 'https://apiv2.shiprocket.in/v1/external/orders/create/adhoc',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQ2OTk5MDUsInNvdXJjZSI6InNyLWF1dGgtaW50IiwiZXhwIjoxNzE5MjA2ODYzLCJqdGkiOiJSM3NqUkhSc1ViY2ZFZ3EyIiwiaWF0IjoxNzE4MzQyODYzLCJpc3MiOiJodHRwczovL3NyLWF1dGguc2hpcHJvY2tldC5pbi9hdXRob3JpemUvdXNlciIsIm5iZiI6MTcxODM0Mjg2MywiY2lkIjozMjAwNzYzLCJ0YyI6MzYwLCJ2ZXJib3NlIjpmYWxzZSwidmVuZG9yX2lkIjowLCJ2ZW5kb3JfY29kZSI6IiJ9.vyjLdX9fmND3UhrrpA-p-5ZNHZZHCMBEwDH7aBRfSdA'
+    },
+    data: payload
+  };
+
   try {
-    await client.messages.create({
-      body: body,
-      from: 'whatsapp:' + 14155238886,
-      to: 'whatsapp:' + to
-    });
-    console.log('WhatsApp message sent successfully!');
+    const response = await axios.request(config);
+    return response.data;
   } catch (error) {
-    console.error('Error sending WhatsApp message:', error);
+    console.error(`Error placing order: ${error}`);
+    throw new Error('Error placing order');
+  }
+};
+
+const onTrackOrder = async (trackId) => {
+  const config = {
+    method: 'get',
+    maxBodyLength: Infinity,
+    url: `https://apiv2.shiprocket.in/v1/external/courier/track/shipment/${trackId}`,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQ2OTk5MDUsInNvdXJjZSI6InNyLWF1dGgtaW50IiwiZXhwIjoxNzE5MjA2ODYzLCJqdGkiOiJSM3NqUkhSc1ViY2ZFZ3EyIiwiaWF0IjoxNzE4MzQyODYzLCJpc3MiOiJodHRwczovL3NyLWF1dGguc2hpcHJvY2tldC5pbi9hdXRob3JpemUvdXNlciIsIm5iZiI6MTcxODM0Mjg2MywiY2lkIjozMjAwNzYzLCJ0YyI6MzYwLCJ2ZXJib3NlIjpmYWxzZSwidmVuZG9yX2lkIjowLCJ2ZW5kb3JfY29kZSI6IiJ9.vyjLdX9fmND3UhrrpA-p-5ZNHZZHCMBEwDH7aBRfSdA'
+    }
+  };
+
+  try {
+    const response = await axios.request(config);
+    return response.data;
+  } catch (error) {
+    console.error(`Error tracking order: ${error}`);
+    return error;
+    throw new Error('Error tracking order');
   }
 };
 
 
-// Function to send message
-function sendMessage(user) {
-  // Assume sending message logic here
-  console.log(`Message sent to ${user.firstname} ${user.lastname}`);
-}
+const CancelTrackOrder = async (trackId) => {
+  const data = JSON.stringify({ track_id: trackId });
 
-// Function to check FCM token responsiveness
-function checkFCMToken(user) {
-  // Assume FCM token check logic here
-  // For simplicity, let's assume it always returns true
-  return true;
-}
+  const config = {
+    method: 'post',
+    maxBodyLength: Infinity,
+    url: 'https://apiv2.shiprocket.in/v1/external/orders/cancel',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQ2OTk5MDUsInNvdXJjZSI6InNyLWF1dGgtaW50IiwiZXhwIjoxNzE5MjA2ODYzLCJqdGkiOiJSM3NqUkhSc1ViY2ZFZ3EyIiwiaWF0IjoxNzE4MzQyODYzLCJpc3MiOiJodHRwczovL3NyLWF1dGguc2hpcHJvY2tldC5pbi9hdXRob3JpemUvdXNlciIsIm5iZiI6MTcxODM0Mjg2MywiY2lkIjozMjAwNzYzLCJ0YyI6MzYwLCJ2ZXJib3NlIjpmYWxzZSwidmVuZG9yX2lkIjowLCJ2ZW5kb3NfY29kZSI6IiJ9.vyjLdX9fmND3UhrrpA-p-5ZNHZZHCMBEwDH7aBRfSdA'
+    },
+    data: data
+  };
 
-// Create a new order with payment
+  try {
+    const response = await axios.request(config);
+    console.log(JSON.stringify(response.data));
+    return response.data; // Return the response data
+  } catch (error) {
+    return error; // Return the response data
+    console.log(error);
+    throw error; // Throw the error to be handled by the calling function
+  }
+};
+
+const onChangeTrackOrder = async (trackId) => {
+  const data = JSON.stringify({ track_id: trackId });
+
+  const config = {
+    method: 'post',
+    maxBodyLength: Infinity,
+    url: 'https://apiv2.shiprocket.in/v1/external/courier/assign/awb',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQ2OTk5MDUsInNvdXJjZSI6InNyLWF1dGgtaW50IiwiZXhwIjoxNzE5MjA2ODYzLCJqdGkiOiJSM3NqUkhSc1ViY2ZFZ3EyIiwiaWF0IjoxNzE4MzQyODYzLCJpc3MiOiJodHRwczovL3NyLWF1dGguc2hpcHJvY2tldC5pbi9hdXRob3JpemUvdXNlciIsIm5iZiI6MTcxODM0Mjg2MywiY2lkIjozMjAwNzYzLCJ0YyI6MzYwLCJ2ZXJib3NlIjpmYWxzZSwidmVuZG9yX2lkIjowLCJ2ZW5kb3NfY29kZSI6IiJ9.vyjLdX9fmND3UhrrpA-p-5ZNHZZHCMBEwDH7aBRfSdA'
+    },
+    data: data
+  };
+
+  try {
+    const response = await axios.request(config);
+    console.log(JSON.stringify(response.data));
+    return response.data; // Return the response data
+  } catch (error) {
+    return error; // Return the response data
+    console.log(error);
+    throw error; // Throw the error to be handled by the calling function
+  }
+};
+const onCreateOrder = async (addressId, codType, newOrderList) => {
+  try {
+    const address = await getAddressById(addressId);
+
+    if (!address) {
+      throw new Error('Address not found');
+    }
+
+    const serviceabilityData = await checkServiceability('560102', address.pinCode, codType);
+
+    if (Object.keys(serviceabilityData).length === 0) {
+      throw new Error('Service not available');
+    }
+
+    const productPromises = newOrderList.quantity.map(async (productIds) => {
+      const product = await Product.findById(productIds.productId);
+      return {
+        "name": product.name,
+        "sku": product.sku,
+        "units": productIds.quantity,
+        "selling_price": product.amount,
+        "discount": product.offeramount,
+        "tax": "",
+        "hsn": 441122
+      };
+    });
+
+    const payload = await createOrderPayload(address, newOrderList, productPromises);
+    const orderResponse = await placeOrder(payload);
+    return orderResponse
+    console.log(orderResponse);
+  } catch (error) {
+    console.error(`Error creating order: ${error}`);
+  }
+};
+
 exports.createOrder = async (req, res) => {
   try {
-    const {
-      userId,
-      addressId,
-      productIds,
-      totalAmount,
-      delivery,
-      razorpay_payment_id,
-      paymentStatus,
-      exta_add_item,
-      exta_message,
-      applycoupon,
-      quantity
-    } = req.body;
+    const { userId, addressId, productIds, totalAmount, delivery, razorpay_payment_id, paymentStatus, applycoupon, quantity } = req.body;
 
-    // Create a new order
     const newOrder = await Order.create({
       userId,
       addressId,
       productIds,
       totalAmount,
-      paymentStatus, // You may adjust the initial payment status
+      paymentStatus,
       delivery,
-      exta_add_item,
-      exta_message,
       razorpay_payment_id,
       applycoupon,
       quantity
     });
 
-    const newProduct = await Product.findById(productIds[0]);
-    console.log(newProduct);
-    const users = await User.find({ UserType: "1" });
-    // Filter FCM tokens and create an array
-    const fcmTokenList = users.filter(user => checkFCMToken(user)).map(user => user.fcm_token);
-    console.log(fcmTokenList);
-    // Prepare the push notification message
-    const message = {
-      registration_ids: fcmTokenList, // Use registration_ids instead of 'to' for multiple recipients
-      notification: {
-        title: newProduct.name,
-        body: `${newProduct.name} - ${newProduct.description}\nPayment Status: ${paymentStatus}\nAmount: ${totalAmount}`,
-      }
-    };
+    const user = await User.findById(userId);
 
-
-    try {
-      // Send the push notification
-      axios.post(fcmEndpoint, message, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `key=${serverKey}`,
-        },
-      })
-        .then(response => {
-          console.log('Push notification sent successfully:', response.data);
-        })
-
-      res.status(200).json({ success: true, order: newOrder });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ success: false, error: "Server error" });
+    if (!user) {
+      return res.status(404).json({ success: false, error: "User not found" });
     }
+
+    user.loyalty_point += 10;
+    await user.save();
+
+    const deliveryType = delivery === "Card" ? 1 : 0;
+    let orderResponses = await onCreateOrder(addressId, deliveryType, newOrder);
+    newOrder.shipment_id = orderResponses.shipment_id
+    await newOrder.save();
+
+    res.status(200).json({ success: true, order: newOrder });
   } catch (error) {
-
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
   }
-
 };
-async function processPayment(userId, totalAmount) {
-  return new Promise((resolve) => {
-    // Simulate payment processing with a delay
-    setTimeout(() => {
-      console.log(`Payment processed for user ${userId} amount ${totalAmount}`);
-      resolve();
-    }, 1000);
-  });
-}
-
-
-
-
-
-// Admin notification logic
-eventEmitter.on('paymentCompleted', ({ userId, totalAmount }) => {
-  // Perform admin notification here
-  console.log(`Admin notified: User ${userId} completed a payment of ${totalAmount}`);
-});
 
 
 exports.getAllOrder = async (req, res) => {
@@ -211,14 +294,9 @@ exports.getAllOrder = async (req, res) => {
       const user = await User.findById(order.userId);
 
       // Fetch product details for each order item
-      const productPromises = order?.quantity.map(async (prod) => {
-        let Options_product = "";
-        if (prod.Options_product_Id !== "") {
-          Options_product = await Product.findById(prod.Options_product_Id);
-        }
-        const product = await Product.findById(prod.productId);
-        return Options_product !== "" ? product : { Options_product, product };
-
+      const productPromises = order.productIds.map(async (productId) => {
+        const product = await Product.findById(productId);
+        return product;
       });
 
       // Wait for all promises to resolve
@@ -236,11 +314,70 @@ exports.getAllOrder = async (req, res) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
+exports.getByOrderID = async (req, res) => {
+  try {
+    const orderId = req.params.id;
+
+    // Find order by order ID
+    const order = await Order.findById(orderId);
+
+    // Check if order exists
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // Fetch address details
+    const address = await Address.findById(order.addressId);
+
+    // Fetch user details
+    const user = await User.findById(order.userId);
+
+    // Fetch product details for each order item
+    const productPromises = order.productIds.map(async (productId) => {
+      let product = await Product.findById(productId);
+      // Fetch ratings for the product
+      const ratings = await Rating.find({ productId, userId: order.userId });
+
+      // Check if ratings exist and contain valid values
+      if (ratings.length > 0) {
+        // Merge product and ratings
+        product = { ...product.toObject(), ratings };
+      } else {
+        // Set ratings to null if not found
+        product.ratings = null;
+      }
+
+      return product;
+    });
+
+    // Wait for all promises to resolve
+    const productsWithDetails = await Promise.all(productPromises);
+
+    // Construct the response object with order details and related entities
+    const orderWithDetails = {
+      _id: order._id,
+      address,
+      user,
+      products: productsWithDetails
+    };
+
+    // Return the response
+    res.status(200).json({ success: true, order: orderWithDetails });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+
+
 
 exports.getAllOrderList = async (req, res) => {
   try {
     // Fetch all orders for the user
     const orderList = await Order.find();
+
+
 
     // Create an array to store promises for fetching product details
     const orderPromises = orderList.map(async (order) => {
@@ -272,26 +409,6 @@ exports.getAllOrderList = async (req, res) => {
   }
 };
 
-exports.getpaymentlisten = async (req, res) => {
-
-  const { userId, amount } = req.body;
-
-  try {
-    // Fetch all orders for the user
-    // Process the payment asynchronously
-    await processPayment(userId, amount);
-
-    // Emit an event to notify the admin
-    eventEmitter.emit('paymentCompleted', { userId, amount });
-
-
-    res.status(200).json({ success: true, orderList });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: "Server error" });
-  }
-}
-
 // Update a specific order by ID
 exports.updateOrderById = async (req, res) => {
   try {
@@ -307,20 +424,9 @@ exports.updateOrderById = async (req, res) => {
         .json({ success: false, message: "Order not found" });
     }
 
-    // Update the Order fields]
-    if (status) {
-      existingOrder.paymentStatus = status; // Assuming 'status' is the field you want to update
-      const messageBody = `Order has been Done: ${orderId.substring(0, 6)}`;
-
-      // Send SMS
-      await sendVerificationSMS("9629283625", orderId);
-
-      // Send WhatsApp message
-      // await sendWhatsApp("919629283625", messageBody);
-    }
-    if (delivery) {
-      existingOrder.delivery = delivery; // Assuming 'status' is the field you want to update
-    }
+    // Update the Order fields
+    existingOrder.paymentStatus = status; // Assuming 'status' is the field you want to update
+    existingOrder.delivery = delivery; // Assuming 'status' is the field you want to update
 
     // Save the updated Order
     const updatedOrder = await existingOrder.save();
@@ -504,7 +610,7 @@ exports.createOrderWithRazorpay = async (req, res) => {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Basic ${Buffer.from(
-            "rzp_live_ZTtFcdDX7OeqJJ:ZOHW4r4AAk3ELI6V0ebLDCKz"
+            "rzp_test_6lyQTyrcSZUJgZ:ojuYmp3qD6Sq3fg3WB4d377Q"
           ).toString("base64")}`,
           // Replace 'your_api_key' and 'your_api_secret' with your actual Razorpay API key and secret
         },
@@ -551,3 +657,97 @@ async function calculateOrderStats(filters) {
 
   return orderStats;
 }
+
+// Get the status of a specific order by ID
+exports.OrderStatusById = async (req, res) => {
+  try {
+    const orderId = req.params.id;
+
+    // Check if the Order exists
+    const existingOrder = await Order.findById(orderId);
+
+    if (!existingOrder) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // Track the order
+    const trackOrderList = await onTrackOrder(existingOrder.shipment_id);
+
+    res.status(200).json({
+      success: true,
+      message: "Order status retrieved successfully",
+      response_message: trackOrderList
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+// Delete a specific order by ID
+exports.ChangeOrderStatusById = async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { courier_id, status } = req.body;
+
+
+    // Check if the Order exists
+    const existingOrder = await Order.findById(orderId);
+
+    if (!existingOrder) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+    }
+    let awb_obj = {
+      shipment_id: existingOrder.shipment_id,
+      courier_id: courier_id,
+      status: status
+
+    }
+
+    // Remove the Order from the database
+    let track_order_list = await onChangeTrackOrder(awb_obj);
+
+    res
+      .status(200)
+      .json({ success: true, message: "Updated Track Order successfully", responce_message: track_order_list });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+
+// Delete a specific order by ID
+exports.CancelOrderById = async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const { order_id } = req.body;
+
+
+    // Check if the Order exists
+    const existingOrder = await Order.findById(orderId);
+
+    if (!existingOrder) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+    }
+    let awb_obj = {
+      "ids": [`${order_id}`]
+    }
+
+    // Remove the Order from the database
+    let track_order_list = await CancelTrackOrder(awb_obj);
+
+    res
+      .status(200)
+      .json({ success: true, message: "Cancel Order successfully", responce_message: track_order_list });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+

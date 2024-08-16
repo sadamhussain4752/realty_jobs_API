@@ -4,12 +4,20 @@ const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const User = require("../../models/UserModel/User");
 const Admin = require("../../models/UserModel/Admin");
-const UserDetails = require("../../models/UserModel/UserDetail");
+const Companys = require("../../models/AddCompany/CompanyModel");
 
 const transporter = require("../../utils/emailConfig");
 const { v4: uuidv4 } = require("uuid");
-const twilio = require("twilio");
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const nodemailer = require('nodemailer');
+
+
+// Load client secrets from a local file.
+const CREDENTIALS_PATH = 'path/to/credentials.json'; // Update this path to your credentials file
+const TOKEN_PATH = 'path/to/token.json'; // Update this path to where you want to store the token
+
 
 const RESPONSE_MESSAGES = {
   EMAIL_TAKEN: "Email is already taken",
@@ -47,12 +55,12 @@ const sendResetEmail = async (userEmail, resetToken) => {
 };
 
 // Send reset email
-const sendVerificationEmail = async (email) => {
+const sendVerificationEmail = async (email,otp) => {
   const mailOptions = {
     from: "sadamimsolutions@gmail.com",
     to: email,
     subject: "Account Verification",
-    html: "<p>Thank you for registering! Please click the link to verify your account.</p>",
+    html: `<p>Thank you for registering! Please click the link to verify your account OTP ${otp}.</p>`,
   };
   await transporter.sendMail(mailOptions);
 };
@@ -115,6 +123,42 @@ function generateVerificationCode() {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
+
+const sendEmail = async (email, otp) => {
+  try {
+   
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      auth: {
+        user: "sadam@imsolutions.mobi",
+        pass: "dubdhyzvluxegnke",
+      },
+    });
+
+    await transporter.verify();
+    
+    await transporter.sendMail({
+      from: "sadamimsolutions@gmail.com",
+      to: email,
+      subject: "Account Verification",
+      html: `<p>Thank you for registering! Please click the link to verify your account OTP ${otp}.</p>`,
+    });
+
+    console.log('Email sent successfully!');
+    return {
+      status: 200
+    };
+
+  } catch (error) {
+    console.error('Error sending email:', error);
+    return {
+      status: 500,
+      error
+    };
+  }
+};
+
 module.exports = {
   login: async (req, res) => {
     const { email, password, mobilenumber,google_signin,fcm_token } = req.body;
@@ -155,15 +199,13 @@ module.exports = {
         }
         console.log(!user.verified  , user.UserType === "3");
         // Check if user exists
-        if (!user.verified || user.OTPNumber || user.UserType === "3") {
-          // Send verification code via Twilio SMS
-          // let updateOTP = await sendVerificationSMS(`${user.mobilenumber}`); // Assuming phoneNumber is a property of your User model
-          // Save the reset token and its expiration time in the user document
-          user.OTPNumber = 1234;
-          await user.save();
-          return res.status(401).json({
-            success: false,
-            message: "Verification SMS sent successfully",
+        if (user.verified && user.UserType === "3") {
+          return res
+          .status(200)
+          .json({
+            success: true,
+            userId: user._id,
+            UserType: user.UserType,
           });
         }
 
@@ -194,7 +236,6 @@ module.exports = {
           .status(200)
           .json({
             success: true,
-            token,
             userId: user._id,
             UserType: user.UserType,
           });
@@ -205,122 +246,117 @@ module.exports = {
       res.status(500).json({ success: false, error: "Server error" });
     }
   },
-
-  register: async (req, res) => {
+  
+   register:   async (req, res) => {
     try {
-      let newAdmin;
-
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ success: false, errors: errors.array() });
       }
-
+  
       const {
-        fullname,
-        work_status,
-        send_message,
+        firstname,
+        lastname,
         email,
         password,
         mobilenumber,
         UserType,
-        storename,
-        storeaddress,
-        storetimming,
-        lat,
-        log,
+        lang,
+        companyName,
+        numberOfEmployees,
+        google_signin,
+        howYouHeard,
+        roleInHiring
+      } = req.body;
+  
+      console.log({
+        firstname,
+        lastname,
+        email,
+        password,
+        mobilenumber,
+        UserType,
         lang,
         google_signin
-      } = req.body;
-
-      const emailTaken = await isFieldTaken(
-        "email",
-        email,
-        RESPONSE_MESSAGES.EMAIL_TAKEN
-      );
+      });
+  
+      const emailTaken = await isFieldTaken("email", email, RESPONSE_MESSAGES.EMAIL_TAKEN);
       if (emailTaken) return res.status(400).json(emailTaken);
-
-      const mobileTaken = await isFieldTaken(
-        "mobilenumber",
-        mobilenumber,
-        RESPONSE_MESSAGES.MOBILE_TAKEN
-      );
+  
+      const mobileTaken = await isFieldTaken("mobilenumber", mobilenumber, RESPONSE_MESSAGES.MOBILE_TAKEN);
       if (mobileTaken) return res.status(400).json(mobileTaken);
-
-      // const usernameTaken = await isFieldTaken(
-      //   "fullname",
-      //   fullname,
-      //   RESPONSE_MESSAGES.USERNAME_TAKEN
-      // );
-      // if (usernameTaken) return res.status(400).json(usernameTaken);
-
+  
+    
+  
       const hashedPassword = await bcrypt.hash(password, 10);
       const otp = generateVerificationCode();
-
-       // Create a new UserDetail
-    const newUserDetail = await UserDetails.create({
-      // Populate UserDetail fields as needed
-      // For example, you can populate with default values
-    });
-
+      const otpExpiry = Date.now() + 3600000; // OTP expires in 1 hour
+  
       const newUser = await User.create({
-        fullname,
-        work_status,
+        firstname,
+        lastname,
         UserType,
         mobilenumber,
         email,
-        send_message,
         password: hashedPassword,
-        username: fullname,
+        username: firstname,
         lang,
-        isprofile_id : newUserDetail._id,
-        OTPNumber: 1234, // Save the generated OTP in the user document
+        OTPNumber: otp,
+        OTPExpiry: otpExpiry,
+        verified: true,
+        howYouHeard,
+        numberOfEmployees,
+        companyName,
+        roleInHiring
       });
-
+  
       if (google_signin) {
-        const response = {
+        return res.status(200).json({
           success: true,
           user: newUser,
           userId: newUser._id,
           UserType: newUser.UserType,
-
-
-        };
-        return res
-        .status(200).json(response)
-        
-      }
-
-      if (UserType === "2") {
-        newAdmin = await Admin.create({
-          storename,
-          storeaddress,
-          admin_id: newUser._id,
-          storetimming,
-          lat,
-          log,
         });
       }
-
-      // Send OTP via Twilio SMS
-      // await sendVerificationSMS(`+91${mobilenumber}`, otp);
-
+  
+      let newAdmin = null;
+      if (UserType === "2") {
+        newAdmin = await Admin.create({
+          since: req.body.since,
+          team_size: req.body.team_size,
+          admin_id: newUser._id,
+          category_type: req.body.category_type,
+          allow: req.body.allow,
+          about: req.body.about,
+          facebook: req.body.facebook,
+          twitter: req.body.twitter,
+          linkedin: req.body.linkedin,
+          google: req.body.google,
+          country: req.body.country,
+          city: req.body.city,
+          address: req.body.address,
+          lat: req.body.lat,
+          log: req.body.log,
+        });
+      }
+  
+      await sendEmail(email, otp);
+  
       const response = {
         success: true,
         user: newUser,
+        userId: newUser._id,
+        UserType: newUser.UserType,
+        ...(newAdmin && { admin: newAdmin })
       };
-
-      if (newAdmin) {
-        response.admin = newAdmin;
-      }
-
+  
       res.status(200).json(response);
     } catch (error) {
       console.error(error);
-      res
-        .status(500)
-        .json({ success: false, error: RESPONSE_MESSAGES.SERVER_ERROR });
+      res.status(500).json({ success: false, error: RESPONSE_MESSAGES.SERVER_ERROR });
     }
   },
+  
   listUsers: async (req, res) => {
     try {
       // Fetch all users
@@ -411,9 +447,9 @@ module.exports = {
       }
 
       // Send verification code via Twilio SMS
-      const updateOTP = await sendVerificationSMS(`${user.mobilenumber}`);
+      // const updateOTP = await sendVerificationSMS(`${user.mobilenumber}`);
       // Save the OTP in the user document
-      user.OTPNumber = updateOTP;
+      user.OTPNumber = 1234;
       await user.save();
 
       return res
@@ -548,26 +584,35 @@ module.exports = {
   userGetById: async (req, res) => {
     try {
       const userId = req.params.id;
-
+  
       // Check if the user with the given ID exists
       const userData = await User.findById(userId);
-
+  
       if (!userData) {
-        return res
-          .status(404)
-          .json({ success: false, error: "User not found" });
+        return res.status(404).json({ success: false, error: "User not found" });
       }
-      // Check if user exists
-      if (!userData?.verified) {
-        return res
-          .status(401)
-          .json({ success: false, message: "Account not Verified" });
+  
+      // Check if the user's account is verified
+      if (!userData.verified) {
+        return res.status(401).json({ success: false, message: "Account not verified" });
       }
-
-      res.status(200).json({
-        success: true,
-        User: userData,
-      });
+  
+      let adminValues = null;
+  
+      // If the user is of type 2 (admin), fetch their associated company/admin data
+      if (userData.UserType === "2") {
+          adminValues = await Companys.findById(userData.admin_id);
+  
+        if (adminValues) {
+          // Convert Mongoose document to plain JavaScript object
+          userData._doc.admin_values = adminValues;
+        } else {
+          return res.status(404).json({ success: false, error: "Admin data not found" });
+        }
+      }
+  
+      // Respond with user data
+      res.status(200).json({ success: true, User: userData });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, error: "Server error" });
@@ -660,31 +705,103 @@ module.exports = {
       res.status(500).json({ success: false, error: "Server error" });
     }
   },
-  updateUserDetail: async (req, res) => {
+   userImageGetById: async (req, res) => {
     try {
       const userId = req.params.id;
-      const updateData = req.body;
-
-      const userDetailToUpdate = await UserDetails.findById(userId);
-      console.log({userDetailToUpdate});
-
-      if (!userDetailToUpdate) {
-        return res
-          .status(404)
-          .json({ success: false, error: "UserDetail not found" });
+      const updateFields = req.body;
+  
+      // Check if the user with the given ID exists
+      const userData = await User.findById(userId);
+      if (!userData) {
+        return res.status(404).json({ success: false, error: "User not found" });
       }
-
-      // Update UserDetail
-      const updatedUserDetail = await UserDetails.findByIdAndUpdate(
-        { _id: userId },
-        updateData,
-        { new: true, runValidators: true }
-      );
-
-      res.status(200).json({ success: true, message: "Successfully uploaded" });
+  
+      // Update the fields dynamically
+      Object.keys(updateFields).forEach((field) => {
+        if (updateFields[field] !== undefined && updateFields[field] !== null) {
+          userData[field] = updateFields[field];
+        }
+      });
+  
+      // Save the updated user
+      await userData.save();
+  
+      let newAdmin = null;
+      if (userData.UserType === "2") {
+        // Fetch the admin details using admin_id from userData
+        const adminData = await Companys.findById(userData._id);
+        console.log(adminData);
+        
+  
+        if (adminData) {
+          // Update admin data fields
+          Object.keys(updateFields).forEach((field) => {
+            if (updateFields[field] !== undefined && updateFields[field] !== null) {
+              adminData[field] = updateFields[field];
+            }
+          });
+  
+          // Save the updated admin data
+          await adminData.save();
+  
+          newAdmin = {
+            since: adminData.since,
+            team_size: adminData.team_size,
+            admin_id: adminData.admin_id,
+            category_type: adminData.category_type,
+            allow: adminData.allow,
+            about: adminData.about,
+            facebook: adminData.facebook,
+            twitter: adminData.twitter,
+            linkedin: adminData.linkedin,
+            google: adminData.google,
+            country: adminData.country,
+            city: adminData.city,
+            address: adminData.address,
+            lat: adminData.lat,
+            log: adminData.log,
+          };
+        } else {
+          return res.status(404).json({ success: false, error: "Admin not found" });
+        }
+      }
+  
+      res.status(200).json({
+        success: true,
+        user: userData,
+        admin: newAdmin, // Including the newAdmin object in the response if UserType is 2
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, error: "Server error" });
     }
-  }
+  },
+  
+
+  verifyEmailOTP: async (req, res) => {
+    try {
+      const { email, otp } = req.body;
+      const user = await User.findOne({ email });
+  
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
+  
+      if (user.OTPNumber !== otp || user.OTPExpiry < Date.now()) {
+        return res.status(401).json({ success: false, message: "Invalid or expired OTP" });
+      }
+  
+      // Reset the OTP and mark the user as verified
+      user.OTPNumber = null;
+      user.OTPExpiry = null;
+      user.verified = true;
+      await user.save();
+  
+      res.status(200).json({ success: true, message: "Email verified successfully" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ success: false, error: "Server error" });
+    }
+  },
+  
 };

@@ -1,87 +1,187 @@
-// controllers/Job.js
-const Job = require("../../models/ProductModel/Product");
-
-// Controller method to get all jobs
-exports.getAllJobs = async (req, res) => {
-  try {
-    const jobs = await Job.find();
-    res.json({ success: true, data: jobs });
-  } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
-  }
+// controllers/JobPost.js
+const JobPost = require("../../models/ProductModel/NewModelProduct");
+const { BASEURL } = require('../../utils/Constants')
+const { uploadHandlers } = require("../../Image/uploadHandlers")
+const axios = require('axios');
+const ExcelJS = require('exceljs');
+const fs = require('fs');
+const LANGID = {
+  1: "IND",
+  2: "JPN",
+  3: "KOR",
+  4: "AUS",
 };
 
-// Get user-specific Jobs by language and search criteria
-exports.getUserJobs = async (req, res) => {
-  try {
-    const { search } = req.query;
-   
-    const query = {
-      isActive: true,  // Include only active jobs
-      $or: [
-        { title: { $regex: new RegExp(search, 'i') } },  // Case-insensitive search for title
-        { description: { $regex: new RegExp(search, 'i') } },  // Case-insensitive search for description
-      ],
-    };
-    const userJobs = await Job.find(search && query);
 
-    res.status(200).json({ success: true, data: userJobs });
+exports.createJobPost = async (req, res) => {
+  try {
+    const {
+      jobTitle,
+      logo,
+      company,
+      company_id,
+      location,
+      description,
+      time,
+      salary,
+      jobType,
+      link,
+      tag,
+      experience,
+      category_id,
+      brand_id,
+      sub_brand_id,
+      totalSalary,
+      skills,
+      skills_title,
+      experience_title,
+      catalogueShoot
+    } = req.body;
+
+    const newJobPost = await JobPost.create({
+      jobTitle,
+      logo,
+      company,
+      company_id,
+      location,
+      description,
+      time,
+      salary,
+      jobType: jobType.split(','), // Convert jobType string back to array
+      link,
+      tag,
+      experience,
+      category_id,
+      brand_id,
+      sub_brand_id,
+      totalSalary,
+      skills,
+      skills_title,
+      experience_title,
+      catalogueShoot,
+    });
+
+    res.status(200).json({ success: true, jobPost: newJobPost });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
 
-// Controller method to get a job by ID
-exports.getJobById = async (req, res) => {
+// Get all JobPosts with pagination
+exports.getAllJobPosts = async (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+
   try {
-    const { id } = req.params;
-    const job = await Job.findById(id);
-    if (!job) {
-      return res.status(404).json({ success: false, error: 'Job not found' });
-    }
-    res.json({ success: true, data: job });
+    const options = {
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10)
+    };
+
+    const jobPosts = await JobPost.find();
+
+    res.status(200).json({ success: true, jobPosts });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
   }
 };
 
-// Controller method to create a new job
-exports.createJob = async (req, res) => {
+// Get a JobPost by ID
+exports.getJobPostById = async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const jobData = req.body; // Assuming request body contains job data
-    const job = await Job.create(jobData);
-    res.status(200).json({ success: true, data: job });
+    const jobPost = await JobPost.findById(id);
+    
+
+    if (!jobPost) {
+      return res.status(404).json({ success: false, message: "JobPost not found" });
+    }
+
+    res.status(200).json({ success: true, jobPost });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
   }
 };
 
-// Controller method to delete a job by ID
-exports.deleteJobById = async (req, res) => {
+// Update a JobPost by ID
+exports.updateJobPostById = async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
-    const job = await Job.findByIdAndDelete(id);
-    if (!job) {
-      return res.status(404).json({ success: false, error: 'Job not found' });
+    const {
+      jobTitle,
+      logo,
+      company,
+      company_id,
+      location,
+      description,
+      time,
+      salary,
+      jobType,
+      link,
+      tag,
+      experience,
+      category_id,
+      brand_id,
+      sub_brand_id,
+      totalSalary,
+      skills,
+      skills_title,
+      experience_title,
+      catalogueShoot
+    } = req.body;
+
+    const updatedJobPost = await JobPost.findByIdAndUpdate(id, {
+      jobTitle,
+      logo,
+      company,
+      company_id,
+      location,
+      description,
+      time,
+      salary,
+      jobType: jobType.split(','), // Convert jobType string back to array
+      link,
+      tag,
+      experience,
+      category_id,
+      brand_id,
+      sub_brand_id,
+      totalSalary,
+      skills,
+      skills_title,
+      experience_title,
+      catalogueShoot,
+    }, { new: true });
+
+    if (!updatedJobPost) {
+      return res.status(404).json({ success: false, message: "JobPost not found" });
     }
-    res.json({ success: true, data: job });
+
+    res.status(200).json({ success: true, jobPost: updatedJobPost });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
   }
 };
 
-// Controller method to update a job by ID
-exports.updateJobById = async (req, res) => {
+// Delete a JobPost by ID
+exports.deleteJobPostById = async (req, res) => {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params;
-    const jobData = req.body; // Assuming request body contains updated job data
-    const job = await Job.findByIdAndUpdate(id, jobData, { new: true });
-    if (!job) {
-      return res.status(404).json({ success: false, error: 'Job not found' });
+    const deletedJobPost = await JobPost.findByIdAndDelete(id);
+
+    if (!deletedJobPost) {
+      return res.status(404).json({ success: false, message: "JobPost not found" });
     }
-    res.status(200).json({ success: true, data: job });
+
+    res.status(200).json({ success: true, message: "JobPost deleted successfully" });
   } catch (error) {
-    res.status(400).json({ success: false, error: error.message });
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
   }
 };

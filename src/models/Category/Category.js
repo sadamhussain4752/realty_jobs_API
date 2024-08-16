@@ -10,7 +10,10 @@ const categorySchema = new mongoose.Schema({
   createdBy: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
   lang: { type: String, required: true },
-  order_by:{ type: String}
+  category_img_desktop:String,
+  category_img_mobile:String,
+  jobNumber: String
+
 
 });
 
