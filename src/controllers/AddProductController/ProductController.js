@@ -93,6 +93,7 @@ exports.getJobPostById = async (req, res) => {
 
   try {
     const jobPost = await JobPost.findById(id);
+    
 
     if (!jobPost) {
       return res.status(404).json({ success: false, message: "JobPost not found" });

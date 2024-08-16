@@ -4,6 +4,8 @@ const jwt = require("jsonwebtoken");
 const { validationResult } = require("express-validator");
 const User = require("../../models/UserModel/User");
 const Admin = require("../../models/UserModel/Admin");
+const Companys = require("../../models/AddCompany/CompanyModel");
+
 const transporter = require("../../utils/emailConfig");
 const { v4: uuidv4 } = require("uuid");
 const axios = require('axios');
@@ -245,8 +247,7 @@ module.exports = {
     }
   },
   
-
-  register: async (req, res, ) => {
+   register:   async (req, res) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -260,35 +261,32 @@ module.exports = {
         password,
         mobilenumber,
         UserType,
-        storename,
-        storeaddress,
-        storetimming,
-        lat,
-        log,
         lang,
-        google_signin
+        companyName,
+        numberOfEmployees,
+        google_signin,
+        howYouHeard,
+        roleInHiring
       } = req.body;
   
-      const emailTaken = await isFieldTaken(
-        "email",
+      console.log({
+        firstname,
+        lastname,
         email,
-        RESPONSE_MESSAGES.EMAIL_TAKEN
-      );
+        password,
+        mobilenumber,
+        UserType,
+        lang,
+        google_signin
+      });
+  
+      const emailTaken = await isFieldTaken("email", email, RESPONSE_MESSAGES.EMAIL_TAKEN);
       if (emailTaken) return res.status(400).json(emailTaken);
   
-      const mobileTaken = await isFieldTaken(
-        "mobilenumber",
-        mobilenumber,
-        RESPONSE_MESSAGES.MOBILE_TAKEN
-      );
+      const mobileTaken = await isFieldTaken("mobilenumber", mobilenumber, RESPONSE_MESSAGES.MOBILE_TAKEN);
       if (mobileTaken) return res.status(400).json(mobileTaken);
   
-      const usernameTaken = await isFieldTaken(
-        "firstname",
-        firstname,
-        RESPONSE_MESSAGES.USERNAME_TAKEN
-      );
-      if (usernameTaken) return res.status(400).json(usernameTaken);
+    
   
       const hashedPassword = await bcrypt.hash(password, 10);
       const otp = generateVerificationCode();
@@ -306,26 +304,39 @@ module.exports = {
         OTPNumber: otp,
         OTPExpiry: otpExpiry,
         verified: true,
+        howYouHeard,
+        numberOfEmployees,
+        companyName,
+        roleInHiring
       });
   
       if (google_signin) {
-        const response = {
+        return res.status(200).json({
           success: true,
           user: newUser,
           userId: newUser._id,
           UserType: newUser.UserType,
-        };
-        return res.status(200).json(response);
+        });
       }
   
+      let newAdmin = null;
       if (UserType === "2") {
         newAdmin = await Admin.create({
-          storename,
-          storeaddress,
+          since: req.body.since,
+          team_size: req.body.team_size,
           admin_id: newUser._id,
-          storetimming,
-          lat,
-          log,
+          category_type: req.body.category_type,
+          allow: req.body.allow,
+          about: req.body.about,
+          facebook: req.body.facebook,
+          twitter: req.body.twitter,
+          linkedin: req.body.linkedin,
+          google: req.body.google,
+          country: req.body.country,
+          city: req.body.city,
+          address: req.body.address,
+          lat: req.body.lat,
+          log: req.body.log,
         });
       }
   
@@ -334,13 +345,11 @@ module.exports = {
       const response = {
         success: true,
         user: newUser,
+        userId: newUser._id,
+        UserType: newUser.UserType,
+        ...(newAdmin && { admin: newAdmin })
       };
   
-      if (newAdmin) {
-        response.admin = newAdmin;
-      }
-     
-      
       res.status(200).json(response);
     } catch (error) {
       console.error(error);
@@ -575,26 +584,35 @@ module.exports = {
   userGetById: async (req, res) => {
     try {
       const userId = req.params.id;
-
+  
       // Check if the user with the given ID exists
       const userData = await User.findById(userId);
-
+  
       if (!userData) {
-        return res
-          .status(404)
-          .json({ success: false, error: "User not found" });
+        return res.status(404).json({ success: false, error: "User not found" });
       }
-      // Check if user exists
-      if (!userData?.verified) {
-        return res
-          .status(401)
-          .json({ success: false, message: "Account not Verified" });
+  
+      // Check if the user's account is verified
+      if (!userData.verified) {
+        return res.status(401).json({ success: false, message: "Account not verified" });
       }
-
-      res.status(200).json({
-        success: true,
-        User: userData,
-      });
+  
+      let adminValues = null;
+  
+      // If the user is of type 2 (admin), fetch their associated company/admin data
+      if (userData.UserType === "2") {
+          adminValues = await Companys.findById(userData.admin_id);
+  
+        if (adminValues) {
+          // Convert Mongoose document to plain JavaScript object
+          userData._doc.admin_values = adminValues;
+        } else {
+          return res.status(404).json({ success: false, error: "Admin data not found" });
+        }
+      }
+  
+      // Respond with user data
+      res.status(200).json({ success: true, User: userData });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, error: "Server error" });
@@ -687,43 +705,79 @@ module.exports = {
       res.status(500).json({ success: false, error: "Server error" });
     }
   },
-  userImageGetById: async (req, res) => {
+   userImageGetById: async (req, res) => {
     try {
       const userId = req.params.id;
-      const { profile_img,firstName,lastName } = req.body;
+      const updateFields = req.body;
   
       // Check if the user with the given ID exists
       const userData = await User.findById(userId);
-  
       if (!userData) {
         return res.status(404).json({ success: false, error: "User not found" });
       }
   
-      // Update the profile_img if provided
-      if (profile_img !== undefined && profile_img !== null) {
-        userData.profile_img = profile_img;
-      }
-       // Update the profile_img if provided
-       if (firstName !== undefined && firstName !== null) {
-        userData.firstname = firstName;
-      }
-       // Update the profile_img if provided
-       if (lastName !== undefined && lastName !== null) {
-        userData.lastname = lastName;
-      }
+      // Update the fields dynamically
+      Object.keys(updateFields).forEach((field) => {
+        if (updateFields[field] !== undefined && updateFields[field] !== null) {
+          userData[field] = updateFields[field];
+        }
+      });
   
       // Save the updated user
       await userData.save();
   
+      let newAdmin = null;
+      if (userData.UserType === "2") {
+        // Fetch the admin details using admin_id from userData
+        const adminData = await Companys.findById(userData._id);
+        console.log(adminData);
+        
+  
+        if (adminData) {
+          // Update admin data fields
+          Object.keys(updateFields).forEach((field) => {
+            if (updateFields[field] !== undefined && updateFields[field] !== null) {
+              adminData[field] = updateFields[field];
+            }
+          });
+  
+          // Save the updated admin data
+          await adminData.save();
+  
+          newAdmin = {
+            since: adminData.since,
+            team_size: adminData.team_size,
+            admin_id: adminData.admin_id,
+            category_type: adminData.category_type,
+            allow: adminData.allow,
+            about: adminData.about,
+            facebook: adminData.facebook,
+            twitter: adminData.twitter,
+            linkedin: adminData.linkedin,
+            google: adminData.google,
+            country: adminData.country,
+            city: adminData.city,
+            address: adminData.address,
+            lat: adminData.lat,
+            log: adminData.log,
+          };
+        } else {
+          return res.status(404).json({ success: false, error: "Admin not found" });
+        }
+      }
+  
       res.status(200).json({
         success: true,
         user: userData,
+        admin: newAdmin, // Including the newAdmin object in the response if UserType is 2
       });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, error: "Server error" });
     }
   },
+  
+
   verifyEmailOTP: async (req, res) => {
     try {
       const { email, otp } = req.body;

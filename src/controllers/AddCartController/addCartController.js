@@ -1,6 +1,7 @@
 // controllers/AddCartController.js
 const AddCart = require('../../models/AddCart/AddCartModel');
 const Product = require('../../models/ProductModel/NewModelProduct');
+const User = require('../../models/UserModel/User');
 
 const LANGID = {
     1: "IND",
@@ -44,29 +45,89 @@ exports.createCartItem = async (req, res) => {
 
 // Get all add cart for a specific user
 exports.getAddcart = async (req, res) => {
+    // try {
+    //   const userId = req.params.id;
+  
+    //   // Fetch all add cart items for the user
+    //   const AddCarts = await AddCart.find({ userId });
+  
+    //   // Create an array to store promises for fetching product details
+    //   const productPromises = AddCarts.map(async (item) => {
+    //     // Fetch product details for each add cart item
+    //     const product = await Product.findById(item.productId);
+    //     return { ...item._doc, product }; // Combine add cart item and product details
+    //   });
+  
+    //   // Wait for all promises to resolve
+    //   const AddCartsWithProducts = await Promise.all(productPromises);
+  
+    //   res.status(200).json({ success: true, AddCarts: AddCartsWithProducts });
+    // } catch (error) {
+    //   console.error(error);
+    //   res.status(500).json({ success: false, error: "Server error" });
+    // }
     try {
       const userId = req.params.id;
-  
-      // Fetch all add cart items for the user
-      const AddCarts = await AddCart.find({ userId });
-  
-      // Create an array to store promises for fetching product details
-      const productPromises = AddCarts.map(async (item) => {
+    
+      // Fetch all add cart items
+      const addCarts = await AddCart.find();
+    
+      // Create an array to store promises for fetching product and user details
+      const productPromises = addCarts.map(async (item) => {
         // Fetch product details for each add cart item
-        const product = await Product.findById(item.productId);
-        return { ...item._doc, product }; // Combine add cart item and product details
+        const product = await Product.findById(item.productId); // Assuming you have a field productId in AddCart schema
+        if (product && product.company_id === userId) {
+          const user = await User.findById(item.userId); // Assuming you have a field userId in AddCart schema
+    
+          if (user) {
+            return { ...item._doc, product, user }; // Combine add cart item, product, and user details
+          }
+        }
+        return null;
       });
-  
+    
       // Wait for all promises to resolve
-      const AddCartsWithProducts = await Promise.all(productPromises);
-  
-      res.status(200).json({ success: true, AddCarts: AddCartsWithProducts });
+      let addCartsWithProducts = await Promise.all(productPromises);
+    
+      // Filter out any null values
+      addCartsWithProducts = addCartsWithProducts.filter(item => item !== null);
+    
+      res.status(200).json({ success: true, addCarts: addCartsWithProducts });
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, error: "Server error" });
     }
+    
+    
+    
   };
 
+
+  // Get all add cart for a specific user
+exports.getAddCompanycart = async (req, res) => {
+  try {
+  
+    const userId = req.params.id;
+
+    // Fetch all add cart items for the user
+    const AddCarts = await AddCart.find();
+
+    // Create an array to store promises for fetching product details
+    const productPromises = AddCarts.map(async (item) => {
+      // Fetch product details for each add cart item
+      const product = await Product.findById({ company_id : userId});
+      return { ...item._doc, product }; // Combine add cart item and product details
+    });
+
+    // Wait for all promises to resolve
+    const AddCartsWithProducts = await Promise.all(productPromises);
+
+    res.status(200).json({ success: true, AddCarts: AddCartsWithProducts });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
 
   // Get all add cart for a specific user
 exports.getCartItem = async (req, res) => {

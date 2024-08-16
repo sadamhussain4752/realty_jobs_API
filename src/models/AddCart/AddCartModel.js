@@ -7,6 +7,10 @@ const AddCartSchema = new mongoose.Schema({
     addedAt: { type: Date, default: Date.now },
     isActive: { type: Boolean, default: true },
     savelater: { type: Boolean, default: true },
+    applicationDate: { type: Date, default: Date.now },
+    positionApplied: { type: String },
+    status: { type: String, enum: ['Pending', 'Approved', 'Rejected',"Waiting"], default: 'Pending' },
+    remarks: { type: String },
     // Add any other relevant fields you may need
 });
 

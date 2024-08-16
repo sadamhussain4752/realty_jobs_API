@@ -3,12 +3,22 @@ const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 
 const AdminSchema = new mongoose.Schema({
-  storename: { type: String, required: true },
-  storeaddress: { type: String, required: true },
+  since: { type: String },
+  team_size: { type: String },
   admin_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User'},
-  storetimming: { type: Object, required: true },
-  lat: { type: Number, required: true },
-  log: { type: Number, unique: false },
+  category_type: { type: String },
+  allow: { type: String },
+  about: { type: String },
+  facebook: { type: String },
+  twitter: { type: String },
+  linkedin: { type: String },
+  google: { type: String },
+  country: { type: String },
+  city: { type: String },
+  address: { type: String },
+  google: { type: String },
+  lat: { type: Number, },
+  log: { type: Number },
 });
 
 // Add a method to generate a AdminSchema 

@@ -6,12 +6,17 @@ const userSchema = new mongoose.Schema({
   firstname: { type: String, required: true },
   lastname: { type: String, required: true },
   UserType: { type: String },
+  admin_id:{ type: String},
   mobilenumber: { type: String, required: true },
   email: { type: String, unique: true, required: true },
   password: { type: String, required: true },
   username: { type: String },
   lang: { type: String, unique: false },
   profile_img: {type: String},
+  howYouHeard: {type: String},
+  companyName: {type: String},
+  numberOfEmployees: {type: String},
+  roleInHiring: {type: String},
   OTPNumber: { type: Number },
   loyalty_point: {type: Number, default: 0}, // Changed type to Number
   verified: {

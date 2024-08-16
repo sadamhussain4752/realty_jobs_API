@@ -17,5 +17,6 @@ router.delete('/deleteCompany/:id', CompanyController.deleteCompany);
 
 router.get('/getAllCompany', CompanyController.getAllCompanies);
 
+router.get('/getCompanyById/:id', CompanyController.getCompanyById);
 
 module.exports = router;

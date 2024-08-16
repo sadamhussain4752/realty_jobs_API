@@ -1,4 +1,3 @@
-// models/Category.js
 const mongoose = require('mongoose');
 
 const categorySchema = new mongoose.Schema({
@@ -23,7 +22,31 @@ const categorySchema = new mongoose.Schema({
     instagram: String,
     youtube: String
     // Add more social media platforms as needed
-  }
+  },
+  kycStatus: String,            // KYC Status
+  panNumber: String,            // PAN Number
+  nameOnPanCard: String,        // Name on PAN Card
+  addressLabel: String,         // Address Label
+  address: String,              // Address
+  country: String,              // Country
+  state: String,                // State
+  city: String,                 // City
+  pincode: String,              // Pincode
+  gstin: String,                // GSTIN
+  username: String,             // Username
+  emailForCommunication: String,// Email for Communication
+  role: String,                 // Role
+  reportingManager: String,     // Reporting Manager
+  mobileNumber: String,         // Mobile Number
+  industryType: String,         // Industry Type
+  contactPerson: String,        // Contact Person
+  alias: String,                // Alias
+  contactPersonDesignation: String, // Contact Person's Designation
+  websiteUrl: String,           // Website URL
+  phoneNumber1: String,         // Phone Number 1
+  phoneNumber2: String,         // Phone Number 2
+  faxNumber: String,            // Fax Number
+  tanNumber: String             // TAN Number
 });
 
 const Category = mongoose.model('Company_name', categorySchema);
