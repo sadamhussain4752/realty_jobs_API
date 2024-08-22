@@ -92,12 +92,17 @@ exports.getJobPostById = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const jobPost = await JobPost.findById(id);
-    
+    let jobPost = await JobPost.findById(id);
 
     if (!jobPost) {
       return res.status(404).json({ success: false, message: "JobPost not found" });
     }
+
+    // Find related job posts by the same company
+    const relatedJobs = await JobPost.find({ company_id: jobPost.company_id });
+
+    // Add related jobs to the jobPost object
+    jobPost["related_jobs"] = relatedJobs;
 
     res.status(200).json({ success: true, jobPost });
   } catch (error) {

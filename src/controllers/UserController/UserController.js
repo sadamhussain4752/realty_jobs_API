@@ -612,23 +612,21 @@ module.exports = {
         }
   
         // Fetch JobPost count, AddCart items, and ShortList totals in parallel
+        let count = AddCart.countDocuments({ userId: userData._id })
+        console.log(
+          count,"count"
+        );
+        
         const [jobPostTotal, addCarts, shortListTotal] = await Promise.all([
           JobPost.countDocuments({ company_id: adminValues._id }),
+        
           AddCart.aggregate([
             {
               $lookup: {
-                from: 'jobposts', // collection name in the database
+                from: 'JobPost', // collection name in the database
                 localField: 'productId',
                 foreignField: '_id',
                 as: 'productDetails'
-              }
-            },
-            {
-              $lookup: {
-                from: 'users',
-                localField: 'userId',
-                foreignField: '_id',
-                as: 'userDetails'
               }
             },
             {
@@ -636,15 +634,18 @@ module.exports = {
             },
             {
               $match: {
-                'productDetails.company_id': userId
+                'productDetails.company_id': userData.admin_id
               }
             },
             {
-              $unwind: '$userDetails'
+              $project: { _id: 1 } // or you can project any other field to reduce the amount of data
             }
-          ]),
-          AddCart.countDocuments({ status: "Approved", companyId: adminValues._id })
+          ]).then(result => result.length),
+        
+          AddCart.countDocuments({ status: "Approved", userId: userData._id })
         ]);
+        
+        
   
         jobPostCount = jobPostTotal;
         jobApplicationTotal = addCarts.length;

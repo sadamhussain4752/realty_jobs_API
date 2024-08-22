@@ -10,6 +10,10 @@ router.post('/createCartItem', AddCartController.createCartItem);
 
 router.get('/addcartUser/:id', AddCartController.getAddcart);
 
+
+router.get('/alladdcart', AddCartController.allgetAddcarts);
+
+
 // Get all based on User item in the cart
 
 router.post('/getCartItem', AddCartController.getCartItem);

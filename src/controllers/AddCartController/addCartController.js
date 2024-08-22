@@ -43,65 +43,91 @@ exports.createCartItem = async (req, res) => {
   }
 };
 
-// Get all add cart for a specific user
+// Get all add cart items for a specific user
 exports.getAddcart = async (req, res) => {
-    // try {
-    //   const userId = req.params.id;
-  
-    //   // Fetch all add cart items for the user
-    //   const AddCarts = await AddCart.find({ userId });
-  
-    //   // Create an array to store promises for fetching product details
-    //   const productPromises = AddCarts.map(async (item) => {
-    //     // Fetch product details for each add cart item
-    //     const product = await Product.findById(item.productId);
-    //     return { ...item._doc, product }; // Combine add cart item and product details
-    //   });
-  
-    //   // Wait for all promises to resolve
-    //   const AddCartsWithProducts = await Promise.all(productPromises);
-  
-    //   res.status(200).json({ success: true, AddCarts: AddCartsWithProducts });
-    // } catch (error) {
-    //   console.error(error);
-    //   res.status(500).json({ success: false, error: "Server error" });
-    // }
-    try {
-      const userId = req.params.id;
-    
-      // Fetch all add cart items
-      const addCarts = await AddCart.find();
-    
-      // Create an array to store promises for fetching product and user details
-      const productPromises = addCarts.map(async (item) => {
-        // Fetch product details for each add cart item
-        const product = await Product.findById(item.productId); // Assuming you have a field productId in AddCart schema
-        if (product && product.company_id === userId) {
-          const user = await User.findById(item.userId); // Assuming you have a field userId in AddCart schema
-    
-          if (user) {
-            return { ...item._doc, product, user }; // Combine add cart item, product, and user details
-          }
-        }
-        return null;
-      });
-    
-      // Wait for all promises to resolve
-      let addCartsWithProducts = await Promise.all(productPromises);
-    
-      // Filter out any null values
-      addCartsWithProducts = addCartsWithProducts.filter(item => item !== null);
-    
-      res.status(200).json({ success: true, addCarts: addCartsWithProducts });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ success: false, error: "Server error" });
-    }
-    
-    
-    
-  };
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId);
 
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    let addCarts = [];
+    if (user.UserType === "2") {
+      // Fetch all add cart items if user is an admin
+      addCarts = await AddCart.find();
+    } else {
+      // Fetch add cart items for the specific user
+      addCarts = await AddCart.find({ userId });
+    }
+
+    const addCartsWithProducts = await Promise.all(
+      addCarts.map(async (item) => {
+        const product = await Product.findById(item.productId);
+         if(user.UserType === "2"){
+          if (product && product.company_id === user.admin_id) {
+            const cartUser = await User.findById(item.userId);
+  
+            if (cartUser) {
+              return { ...item._doc, product, user: cartUser }; // Combine add cart item, product, and user details
+            }
+          }
+         }else{
+          if (product) {
+            const cartUser = await User.findById(item.userId);
+  
+            if (cartUser) {
+              return { ...item._doc, product, user: cartUser }; // Combine add cart item, product, and user details
+            }
+          }
+         }
+       
+        return null;
+      })
+    );
+
+    // Filter out any null values
+    const filteredAddCarts = addCartsWithProducts.filter((item) => item !== null);
+
+    res.status(200).json({ success: true, addCarts: filteredAddCarts });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+  // Get all add cart for a specific user
+exports.allgetAddcarts = async (req, res) => {
+ 
+  try {
+    const userId = req.params.id;
+
+    // Fetch all add cart items for the user
+    const AddCarts = await AddCart.find();
+
+    // Create an array to store promises for fetching product details
+    const productPromises = AddCarts.map(async (item) => {
+      // Fetch product details for each add cart item
+      const product = await Product.findById({ _id : item.productId});
+      const user = await User.findById({ _id : item.userId});
+
+      return { ...item._doc, product,user }; // Combine add cart item and product details
+    });
+
+    // Wait for all promises to resolve
+    const AddCartsWithProducts = await Promise.all(productPromises);
+
+    res.status(200).json({ success: true, orders: AddCartsWithProducts });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+  
+  
+  
+};
 
   // Get all add cart for a specific user
 exports.getAddCompanycart = async (req, res) => {
