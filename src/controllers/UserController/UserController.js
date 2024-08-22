@@ -7,6 +7,7 @@ const Admin = require("../../models/UserModel/Admin");
 const Companys = require("../../models/AddCompany/CompanyModel");
 const JobPost = require("../../models/ProductModel/NewModelProduct");
 const AddCart = require('../../models/AddCart/AddCartModel');
+const Product = require('../../models/ProductModel/NewModelProduct');
 
 const transporter = require("../../utils/emailConfig");
 const { v4: uuidv4 } = require("uuid");
@@ -587,85 +588,58 @@ module.exports = {
     try {
       const userId = req.params.id;
   
-      // Check if the user with the given ID exists
-      const userData = await User.findById(userId);
+      // Fetch user data and check if it exists and is verified
+      const userData = await User.findById(userId).exec();
+      if (!userData) return res.status(404).json({ success: false, error: "User not found" });
+      if (!userData.verified) return res.status(401).json({ success: false, message: "Account not verified" });
   
-      if (!userData) {
-        return res.status(404).json({ success: false, error: "User not found" });
-      }
-  
-      // Check if the user's account is verified
-      if (!userData.verified) {
-        return res.status(401).json({ success: false, message: "Account not verified" });
-      }
-  
-      let adminValues = null;
-      let jobPostCount = 0;
-      let jobApplicationTotal = 0;
-      let jobShortListTotal = 0;
+      // Initialize response data
+      let response = { success: true, User: userData };
   
       if (userData.UserType === "2") {
-        adminValues = await Companys.findById(userData.admin_id);
+        // Fetch admin values and related data if the user is of UserType "2"
+        const adminValues = await Companys.findById(userData.admin_id).exec();
+        if (!adminValues) return res.status(404).json({ success: false, error: "Admin data not found" });
   
-        if (!adminValues) {
-          return res.status(404).json({ success: false, error: "Admin data not found" });
-        }
-  
-        // Fetch JobPost count, AddCart items, and ShortList totals in parallel
-        let count = AddCart.countDocuments({ userId: userData._id })
-        console.log(
-          count,"count"
-        );
-        
-        const [jobPostTotal, addCarts, shortListTotal] = await Promise.all([
-          JobPost.countDocuments({ company_id: adminValues._id }),
-        
-          AddCart.aggregate([
-            {
-              $lookup: {
-                from: 'JobPost', // collection name in the database
-                localField: 'productId',
-                foreignField: '_id',
-                as: 'productDetails'
-              }
-            },
-            {
-              $unwind: '$productDetails'
-            },
-            {
-              $match: {
-                'productDetails.company_id': userData.admin_id
-              }
-            },
-            {
-              $project: { _id: 1 } // or you can project any other field to reduce the amount of data
-            }
-          ]).then(result => result.length),
-        
-          AddCart.countDocuments({ status: "Approved", userId: userData._id })
+        // Get job posts, carts, and shortlist counts in parallel
+        const [jobPostCount, addCarts, jobShortListTotal] = await Promise.all([
+          JobPost.countDocuments({ company_id: adminValues._id }).exec(),
+          AddCart.find({}).exec(),
+          AddCart.countDocuments({ status: "Approved", userId: userData._id }).exec(),
         ]);
-        
-        
   
-        jobPostCount = jobPostTotal;
-        jobApplicationTotal = addCarts.length;
-        jobShortListTotal = shortListTotal;
+        // Map carts with products and users, filtering out irrelevant carts
+        const filteredAddCarts = await Promise.all(
+          addCarts.map(async (item) => {
+            const product = await Product.findById(item.productId).exec();
+            if (!product) return null;
+            if (userData.UserType === "2" && product.company_id !== userData.admin_id) return null;
   
-        // Add admin values and counts to user data
-        userData._doc.admin_values = adminValues;
-        userData._doc.JobPost_total = jobPostCount;
-        userData._doc.JobMessage_total = 0; // You can update this if you have a way to get JobMessage count
-        userData._doc.JobShortList_total = jobShortListTotal;
-        userData._doc.JobApplication_total = jobApplicationTotal;
+            const cartUser = await User.findById(item.userId).exec();
+            return cartUser ? { ...item._doc, product, user: cartUser } : null;
+          })
+        ).then(results => results.filter(item => item !== null));
+  
+        // Add admin values and counts to the response data
+        response.User = {
+          ...userData._doc,
+          admin_values: adminValues,
+          JobPost_total: jobPostCount,
+          JobMessage_total: 0, // Update if needed
+          JobShortList_total: jobShortListTotal,
+          JobApplication_total: filteredAddCarts.length,
+        };
       }
   
-      // Respond with user data
-      res.status(200).json({ success: true, User: userData });
+      // Send the final response
+      res.status(200).json(response);
+  
     } catch (error) {
       console.error(error);
       res.status(500).json({ success: false, error: "Server error" });
     }
   },
+  
   
   
   updateAdmin: async (req, res) => {
